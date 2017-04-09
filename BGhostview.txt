@@ -1,0 +1,14 @@
+===================== 
+         File: BGhostview.zip
+       Author: Andreas Raquet <raquet@cdr.stanford.edu>
+      Release: 0.8.1
+Compatibility: R3
+     Location: Graphics
+  Description: Postscript viewer
+        Notes: GUI-Frontend for gs. This is a port of Mark Donohoe's KGhostview.
+               Jake Hamby's BeOS-Port of Aladdin Ghostscript is required. Make
+               sure the gs-libraries are in the library-path (see readme for details).
+               Jon Watte's libprefs is also required.
+               Full source is included. Thanks to Jake Hamby for helpful advice.
+               Colors.h from "Santa's Giftbag" is needed to recompile.
+===================== 

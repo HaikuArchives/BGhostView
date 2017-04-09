@@ -1,0 +1,96 @@
+Readme for BGhostview by Andreas Raquet
+
+Copyright: GPL, see file COPYING
+Disclaimer: Use it on your own risk
+
+Overview:
+
+This is techically a port of KGhostview for X11/KDE.
+Hoever I had to rewrite most of it, so only the
+basic architecture and the ps-parser remain as
+in the original. Thanks to Tim Theisen and Mark
+Donohoe for the original works.
+I'd also like to thank Jake Hamby, whose port of
+Ghostscript and helpful advice made this port
+possible.
+
+
+Compilation:
+
+BGhostview.proj is provided to compile almost 
+everything - almost. Infortunately I could
+not get the BeIDE to compile the ps.c-file
+and the other stuf with the same settings.
+Therefore ps.c is not included in the .proj-file
+and must be compiled by hand:
+
+mwcc -c ps.c -o ps.o
+
+should do the trick. After that the .proj-file
+can be used to compile the rest. ps.o will also
+be liked by the .proj-file.
+
+Note, that Colors.h from Santa's Giftbag is required.
+
+
+Installation:
+
+A packagebuilder-version will make installation easy in
+the future. For now simple extract the zip-file
+whereever you want and use BGhostview from there.
+
+Warning: This application requires the Ghostscript-library
+libgs.so, which is included in the Ghostscript-archive.
+It is not enough to install Ghostscript to /boot/apps.
+You must also make all libraries in /boot/apps/Ghostscript/lib
+are in the library-search-path. You can do this e.g by
+putting the following line at the end of your user-bootscript:
+
+export LIBRARY_PATH=$LIBRARY_PATH:/boot/apps/Ghostscript/lib
+
+
+Restrictions:
+
+The X11-version of BGhostview starts a Ghostscript-process,
+feeds it with postscript-data and simply swallows
+its window. As this is not possible in the BeOS, 
+BGhostview accesses the gsdll - a shared library
+version of Ghostscript. The implementation of this
+library does not allow to render to multiple windows
+at the same time from the same app.
+It is however possible to lauch BGhostview multiple
+times - the overhead should not be too dramatic.
+
+A more severe - sometimes annoying difference to the
+X11-Version is the fact that Ghostscript for BeOS always
+uses a Background-buffer for rendering and copies the
+content into the BGhostview-view when it is finished.
+This means that before rendering is complete, you will
+not see anything but a white page on BGhostview.
+More important, it also means that memory is required
+for the whole page, as opposed to only the part
+that is currently visible, which can get really problematic
+when trying to view large pages in 400% zoom-mode (I have
+disabled higher zoom modes to save you from the frustration
+of watching your drive swapping for minutes). 
+The X11-version does usually not use backingstore (although it can)
+and you can watch a ps-file at any magnification as it is 
+being rendered.
+
+
+Bugs:
+
+Stable on my machine.
+
+Send reports to raquet@cdr.stanford.edu. As you must have 
+Ghostview installed, please make sure that your problem isn't
+Ghostscript-related (view the questioable file with gs).
+
+
+Todo:
+- printing support isn't yet done
+- I'd like to have some nicer icons 
+- enhanced support for PDFs and whatever user request
+
+Regards,
+Andreas Raquet - 8/29/1998
