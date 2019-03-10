@@ -6,27 +6,27 @@
 #include <math.h>
 #include <string.h>
 #include <signal.h>
-#include "BGVMain.h"
 #include "BPSWidget.h"
 #include "BGVPageItem.h"
 #include "AToolBar.h"
 #include "Preferences.h"
-
+ 
 class BGhostview : public BWindow
 {
 
 public:
 	BGhostview(BRect frame, const char* title);
-	~BGhostview();
+	void Quit();
 	bool QuitRequested();
 	void setup();
-	void show_page(int number);
+	void show_page(unsigned int number);
 	void set_magstep(int i);
 	void new_file(int number);
 	void openFile(const char* name );
 	void set_pagemedia( int number );
 
 	void readSettings();
+	void writeSettings();
 	void updateRecentList();
 	BView *createToolbar(BRect frame);
 	BView *createMenubar(BRect frame);
@@ -45,7 +45,7 @@ public:
 					char* printerVariable,
 					int pgStart, int pgEnd );
 				
-	char* printToFile( bool allMode, char** ml  );
+	void printToFile( char* fname, bool all);
 				
 	char* printToPrinter( char* printerName, 
 				char* spoolerCommand, char* printerVariable,
@@ -81,10 +81,15 @@ public:
 	void zoomIn();
 	void zoomOut();
 	void copyright();
-	void openNewFile();
+	void openLoadPanel();
+	void openSaveAllPanel();
+	void openSaveMarkedPanel();
 	void openRecent( int id );
 
 private:
+	BFilePanel *filePanel;
+	BFilePanel *savePanel;
+
 	BMenuBar *menubar;
 	BMenu *m_file;
 	BMenu *m_recent;
@@ -106,15 +111,21 @@ private:
 	char* page_string;
 	char* page_label_text;
 	char* part_label_text;
-	char* position_label;	    
+	char* position_label;	 
+	BBitmap *icons[10];   
 };
 
 #define BGV_NEW_FILE	'GVNF'
 #define BGV_OLD_FILE	'GVOF'
 #define BGV_OPEN_RECENT	'GVOR'
+#define BGV_SAVE_ALL	'GVSA'
+#define BGV_SAVE_MARKED	'GVSM'
+#define BGV_SAVE_ALL_REFS	'GVAR'
+#define BGV_SAVE_MARKED_REFS	'GVMR'
 #define BGV_REDISPLAY	'GVRD'
 #define BGV_PAGE_SETUP 'GVPS'
-#define BGV_PRINT	'GVPR'
+#define BGV_PRINT_ALL	'GVPA'
+#define BGV_PRINT_MARKED	'GVPM'
 #define BGV_EXIT	'GVEX'
 #define BGV_ZOOMIN	'GVZI'
 #define BGV_ZOOMOUT 'GVZO'
@@ -141,6 +152,9 @@ private:
 #define BGV_INVOKE_PAGE 'GVIP'
 #define BGV_SET_MAGSTEP 'GVMG'
 #define BGV_SET_MEDIA 'GVMD'
+#define BGV_CONSOLE 'GVCN'
+
+
 #endif // BGHOSTVIEW_H
 
 

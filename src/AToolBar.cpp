@@ -17,10 +17,12 @@ AToolBar::AToolBar( BRect frame, const char *name )
 	rightEdge=2;
 };
 
-void AToolBar::AddIcon(char *filename, const char *name, BMessage *msg, bool enabled) {
-	AToolBarIcon *icon = new AToolBarIcon(BRect(0,0,10,10), filename, name, msg);
-	icon->SetEnabled(enabled);
-	AddView(icon);
+void AToolBar::AddIcon(BBitmap *bitmap, const char *name, BMessage *msg, bool enabled) {
+	AToolBarIcon *icon = new AToolBarIcon(BRect(0,0,10,10), bitmap, name, msg);
+	if (icon!=NULL) {
+		icon->SetEnabled(enabled);
+		AddView(icon); 
+	}
 };
 
 void AToolBar::AddView(BView *view) {

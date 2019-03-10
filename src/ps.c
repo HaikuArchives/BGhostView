@@ -46,6 +46,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #ifndef SEEK_SET
 #define SEEK_SET 0
 #endif
@@ -240,7 +241,8 @@ struct document *
     FILE *file;*/
 psscan(FILE **fileP, const char *filename, const char *tmpprefix, 
         char **filename_dscP, const char *cmd_scan_pdf, 
-        char **filename_uncP, const char *cmd_uncompress)
+        char **filename_uncP, const char *cmd_uncompress,
+        char **error_name, char**error_details)
 {
 	FILE *file; /* Added in patch */
 /* end of patch */
@@ -271,6 +273,11 @@ psscan(FILE **fileP, const char *filename, const char *tmpprefix,
 /* Jake Hamby patch */
 /* Following code added */
 
+if (*error_name==0) {
+	*error_name = malloc(BUFSIZ);
+	(*error_name)[0]=0;
+  *error_details=malloc(BUFSIZ);
+}
 if (cmd_uncompress) {
 	char b[2];
 	if (!(fread(b, sizeof(char),2, *fileP) == 2)
@@ -279,18 +286,18 @@ if (cmd_uncompress) {
 		cmd_uncompress=NULL;
 	}
 }
-if (cmd_uncompress) {
-	struct document *retval = NULL;
+if (cmd_uncompress) {	
+  struct document *retval = NULL;
 	FILE *tmpfile = (FILE*)NULL;
 	char *filename_unc;
 	char cmd[BUFSIZ];
 	/*char s[BUFSIZ];*/
 	filename_unc = file_getTmpFilename(tmpprefix);
 	sprintf(cmd,cmd_uncompress,filename,filename_unc);
-	fprintf(stderr, "uncompress command:%s\n",cmd);
 	if (system(cmd) || file_fileIsNotUseful(filename_unc)) {
 		unc_exec_failed:
-		fprintf(stderr, "uncompressing failed\n");
+		sprintf(*error_name,"Uncompressing failed");
+  	sprintf(*error_details, "Uncompressing failed.\nuncompress command:%s\n",cmd);
 		if (tmpfile) fclose(tmpfile);
 		unlink(filename_unc);
 		unc_ok:
@@ -301,7 +308,7 @@ if (cmd_uncompress) {
 	if (!tmpfile) goto unc_exec_failed;
 	fclose(*fileP);
 	*fileP = tmpfile;
-	retval = psscan(fileP,filename_unc,tmpprefix,filename_dscP,cmd_scan_pdf,NULL,NULL);
+	retval = psscan(fileP,filename_unc,tmpprefix,filename_dscP,cmd_scan_pdf,NULL,NULL,error_name, error_details);
 	*filename_uncP = strdup(filename_unc);
 	goto unc_ok;
 }
@@ -311,13 +318,14 @@ file = *fileP;
 
     rewind(file);
     if (readline(line, sizeof line, file, &position, &line_len) == NULL) {
-	fprintf(stderr, "Warning: empty file.\n");
+	sprintf(*error_name, "No document");
+	sprintf(*error_details, "No document.\nThe requested file does not contain any data.");
 	return(NULL);
     }
 
     /* Header comments */
 
-    if (iscomment(line,"%!PS-Adobe-")) {
+if (iscomment(line,"%!PS-Adobe-")) {
 	doc = (struct document *) malloc(sizeof(struct document));
 	if (doc == NULL) {
 	    fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
@@ -328,46 +336,48 @@ file = *fileP;
 /* Jake Hamby patch 18/3/98 */
 
 	sscanf(line, "%*s %s", text);
-	/*doc->epsf = iscomment(text, "EPSF-");*/
 	doc->epsf = iscomment(text, "EPSF"); /* Hamby - This line changed */
+	doc->pdf=0;
 	doc->beginheader = position;
 	section_len = line_len;
 /* Start of added code section */
-} else if (iscomment(line,"%PDF-") && cmd_scan_pdf) {
-	struct document *retval = NULL;
-	FILE *tmpfile = (FILE*)NULL;
-	char *filename_dsc;
-	char cmd[512];
-	char s[512];
-	filename_dsc=file_getTmpFilename(tmpprefix);
-	sprintf(cmd,cmd_scan_pdf,filename,filename_dsc);
-	fprintf(stderr, "PDF scan command:%s\n",cmd);
-	if (system(cmd) || file_fileIsNotUseful(filename_dsc)) {
-		scan_exec_failed:
-		sprintf(s,"Execution of\n%s\nfailed.",cmd);
-		scan_failed:
-		fprintf(stderr, "Error: %s\n", s);
-		if (tmpfile) fclose(tmpfile);
-		unlink(filename_dsc);
-		scan_ok:
-		free(filename_dsc);
-		return(retval);
-	}
-	tmpfile = fopen(filename_dsc, "r");
-	if (!tmpfile) goto scan_exec_failed;
-	fclose(*fileP);
-	*fileP = tmpfile;
-	retval = psscan(fileP,filename_dsc,tmpprefix,filename_dscP,cmd_scan_pdf,NULL,NULL);
-	if (!retval) {
-		sprintf(s,"Scanning\n%s\nfailed.",filename_dsc);
+	} 
+	else if (iscomment(line,"%PDF-") && cmd_scan_pdf) {
+		struct document *retval = NULL;
+		FILE *tmpfile = (FILE*)NULL;
+		char *filename_dsc;
+		char cmd[512];
+		char s[512];
+		filename_dsc=file_getTmpFilename(tmpprefix);
+		sprintf(cmd,cmd_scan_pdf,filename,filename_dsc);
+		if (system(cmd) || file_fileIsNotUseful(filename_dsc)) {
+			scan_exec_failed:
+			sprintf(*error_details,"Parsing PDF-file failed.\nPDF-scan command unsuccessful:\n%s.",cmd);
+			scan_failed:
+			sprintf(*error_name, "Parsing PDF-file failed.");
+			if (tmpfile) fclose(tmpfile);
+			unlink(filename_dsc);
+			scan_ok:
+			free(filename_dsc);
+			return(retval);
+		}
+		tmpfile = fopen(filename_dsc, "r");
+		if (!tmpfile) goto scan_exec_failed;
+		fclose(*fileP);
+		*fileP = tmpfile;
+		retval = psscan(fileP,filename_dsc,tmpprefix,filename_dscP,cmd_scan_pdf,NULL,NULL,error_name, error_details);
+		if (!retval) {
+			sprintf(*error_details,"Parsing PDF-file failed.\nScanning of generate DSC failed:\n%s.",filename_dsc);
 		goto scan_failed;
 	}
 	*filename_dscP = strdup(filename_dsc);
+	retval->pdf=1;
 	goto scan_ok;
 /* end of added code section */
 /* end of patch */
-	} else {
-	fprintf(stderr, "Unknown format\n");
+} 
+else {
+	// Unknown format - but assume single-page-document
 	return(NULL);
     }
 
@@ -1152,8 +1162,6 @@ psfree(doc)
 {
     int i;
 
-    if (doc) {
-    printf("This document exists\n");
 	for (i=0; i<doc->numpages; i++) {
 	    if (doc->pages[i].label) free(doc->pages[i].label);
 	}
@@ -1165,7 +1173,6 @@ psfree(doc)
 	if (doc->pages) free(doc->pages);
 	if (doc->media) free(doc->media);
 	free(doc);
-    }
 }
 
 /*
@@ -1552,6 +1559,92 @@ pscopyuntil(from, to, begin, end, comment)
 	}
     }
     return NULL;
+}
+
+/*##########################################################*/
+/* pscopydoc */
+/* Copy the headers, marked pages, and trailer to fp */
+/*##########################################################*/
+
+void
+pscopydoc(dest_file,src_file,d,pagelist)
+    FILE *dest_file;
+    FILE *src_file;
+    struct document *d;
+    char *pagelist;
+{
+    char text[PSLINELENGTH];
+    char *comment;
+    int pages_written = 0;
+    int pages_atend = 0;
+    int pages;
+    int page = 1;
+    int i, j;
+    int here;
+
+
+    i=0;
+    pages=0;
+    while (pagelist[i]) { if (pagelist[i]=='*') pages++; i++; }
+
+    here = d->beginheader;
+    while ((comment=pscopyuntil(src_file,dest_file,here,d->endheader,"%%Pages:"))) {
+       here = ftell(src_file);
+       if (pages_written || pages_atend) {
+          free(comment);
+          continue;
+       }
+       sscanf(comment+length("%%Pages:"), "%s", text);
+       if (strcmp(text, "(atend)") == 0) {
+          fputs(comment, dest_file);
+          pages_atend = 1;
+       } else {
+          switch (sscanf(comment+length("%%Pages:"), "%*d %d", &i)) {
+             case 1:
+                fprintf(dest_file, "%%%%Pages: %d %d\n", pages, i);
+                break;
+             default:
+                fprintf(dest_file, "%%%%Pages: %d\n", pages);
+                break;
+          }
+          pages_written = 1;
+       }
+       free(comment);
+   }
+   pscopy(src_file, dest_file, d->beginpreview, d->endpreview);
+   pscopy(src_file, dest_file, d->begindefaults, d->enddefaults);
+   pscopy(src_file, dest_file, d->beginprolog, d->endprolog);
+   pscopy(src_file, dest_file, d->beginsetup, d->endsetup);
+
+   for (i = 0; i < d->numpages; i++) {
+      if (d->pageorder == DESCEND) j = (d->numpages - 1) - i;
+      else                         j = i;
+      if (pagelist[j]=='*') {
+          comment = pscopyuntil(src_file,dest_file,d->pages[i].begin,d->pages[i].end, "%%Page:");
+          fprintf(dest_file, "%%%%Page: %s %d\n",d->pages[i].label, page++);
+          free(comment);
+          pscopy(src_file, dest_file, -1, d->pages[i].end);
+      }
+   }
+	here=d->begintrailer;
+   while ((comment = pscopyuntil(src_file, dest_file, here, d->endtrailer, "%%Pages:"))) {
+      here = ftell(src_file);
+      if (pages_written) {
+         free(comment);
+         continue;
+      }
+      switch (sscanf(comment+length("%%Pages:"), "%*d %d", &i)) {
+         case 1:
+            fprintf(dest_file, "%%%%Pages: %d %d\n", pages, i);
+            break;
+         default:
+            fprintf(dest_file, "%%%%Pages: %d\n", pages);
+            break;
+      }
+      pages_written = 1;
+      free(comment);
+   }
+
 }
 
 /*

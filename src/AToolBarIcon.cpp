@@ -9,17 +9,19 @@
 **
 *****************************************************************************/
 #include "AToolBarIcon.h"
+#include <stdlib.h>
 
-AToolBarIcon::AToolBarIcon( BRect frame, const char* fname, const char *name, BMessage *message ) 
+AToolBarIcon::AToolBarIcon( BRect frame, BBitmap *bitmap, const char *name, BMessage *message ) 
   : BButton(frame,name,NULL,message,B_FOLLOW_LEFT|B_FOLLOW_TOP,B_WILL_DRAW) {
-	SetViewColor(B_TRANSPARENT_32_BIT);
-	filename=fname;
+	SetViewColor(B_TRANSPARENT_COLOR);
 	selectable=false;
 	control=false;
-	BFile file;
-  file.SetTo(filename,B_READ_ONLY);
-  icon=BTranslationUtils::GetBitmap(&file);
-  ResizeTo(icon->Bounds().Width()+2,icon->Bounds().Height()+2);
+	icon=bitmap;
+  if (icon==NULL) {
+    BAlert *d = new BAlert("Error","Icon not found\n","Ok");
+    d->Go();
+    exit(1);
+  }
 };
 
 void AToolBarIcon::GetPreferredSize(float *width, float *height) {
@@ -55,6 +57,7 @@ void AToolBarIcon::SetValue(int32 value) {
 };
 
 void AToolBarIcon::Draw(BRect frame) {
+		rgb_color BeShadow=tint_color(ui_color(B_PANEL_BACKGROUND_COLOR), B_DISABLED_LABEL_TINT);
 	if (selectable && IsEnabled()) {
 		if (!control) SetHighColor(White);
 		else SetHighColor(BeShadow);

@@ -1,12 +1,12 @@
 Readme for BGhostview by Andreas Raquet
 
 Copyright: GPL, see file COPYING
-Disclaimer: Use it on your own risk
+Disclaimer: This is beta-software. Use it at your own risk!
 
 Overview:
 
 This is techically a port of KGhostview for X11/KDE.
-Hoever I had to rewrite most of it, so only the
+However I had to rewrite most of it, so only the
 basic architecture and the ps-parser remain as
 in the original. Thanks to Tim Theisen and Mark
 Donohoe for the original works.
@@ -14,42 +14,49 @@ I'd also like to thank Jake Hamby, whose port of
 Ghostscript and helpful advice made this port
 possible.
 
+Requirements:
 
-Compilation:
+- Alladin Ghostscript 
+- XPMTranslator
+- libprefs
 
-BGhostview.proj is provided to compile almost 
-everything - almost. Infortunately I could
-not get the BeIDE to compile the ps.c-file
-and the other stuf with the same settings.
-Therefore ps.c is not included in the .proj-file
-and must be compiled by hand:
-
-mwcc -c ps.c -o ps.o
-
-should do the trick. After that the .proj-file
-can be used to compile the rest. ps.o will also
-be liked by the .proj-file.
-
-Note, that Colors.h from Santa's Giftbag is required.
-
+All these packages can be found on BeWare and are
+rather easy to install.
 
 Installation:
 
-A packagebuilder-version will make installation easy in
-the future. For now simple extract the zip-file
-whereever you want and use BGhostview from there.
+When all requirements are met, installation is as 
+simple as copying the subdirectory for your architecture
+(x86 or ppc) whereever you like and renaming it
+to whatever you like. 
 
-Warning: This application requires the Ghostscript-library
-libgs.so, which is included in the Ghostscript-archive.
-It is not enough to install Ghostscript to /boot/apps.
-You must also make all libraries in /boot/apps/Ghostscript/lib
-are in the library-search-path. You can do this e.g by
-putting the following line at the end of your user-bootscript:
+Then create a link "Ghostscript"
+to your Ghostscript installation in this directory.
+If Ghostscript is installed in /boot/apps/Ghostscript,
+this link is already present and the last
+step is not necessary.
 
-export LIBRARY_PATH=$LIBRARY_PATH:/boot/apps/Ghostscript/lib
+Finally, open the Filetype-preferences and set BGhostview as
+the default-tool for Postscript and PDF.
 
+Compilation:
 
-Restrictions:
+Compiling the package is somewhat more difficult due
+to a number of requirements. First the required libraries
+must be in the library-path. These are the libraries in
+/boot/apps/Ghostscript/lib as well as liprefs.so.
+
+The header-files for libprefs as well as Colors.h (from Santa's
+Gift bag) must be in /home/develop/headers
+
+Goto the src-directory and build BGhostview using the
+makefile.
+
+Copy the created binary from obj.x86 or obj.ppc (depending
+on which architecture you use) to the x86 or ppc -directory
+on top-level.
+
+Restrictions of the BeOS version:
 
 The X11-version of BGhostview starts a Ghostscript-process,
 feeds it with postscript-data and simply swallows
@@ -82,15 +89,16 @@ Bugs:
 
 Stable on my machine.
 
-Send reports to raquet@cdr.stanford.edu. As you must have 
-Ghostview installed, please make sure that your problem isn't
-Ghostscript-related (view the questioable file with gs).
+Send reports to raquet@cdr.stanford.edu 
+Before you report bugs, please make sure that your problem isn't
+Ghostscript-related (view the file in question with gs).
 
 
 Todo:
-- printing support isn't yet done
+- printing support isn't done yet
+- easier installation
 - I'd like to have some nicer icons 
-- enhanced support for PDFs and whatever user request
+- enhanced support for PDFs and whatever users request
 
 Regards,
-Andreas Raquet - 8/29/1998
+Andreas Raquet - 4/13/1999

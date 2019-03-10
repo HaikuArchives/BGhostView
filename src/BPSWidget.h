@@ -12,12 +12,15 @@
 #include <fcntl.h>
 #include <Colors.h>
 
+#include "BPSConsole.h"
+
 #if !defined(BUFSIZ)
 #define BUFSIZ 512;
 #endif
 
 int gsdll_call(int message, char *str, unsigned long count);
 long gsloop(void* psview);
+bool writePS(FILE *in, FILE *out, long begin, unsigned int len);
 
 class BPSWidget : public BView
 {
@@ -34,6 +37,10 @@ public:
 	bool sendPS(FILE *fp, long begin,unsigned int len,bool close);
 	void disableInterpreter() { stopInterpreter(); };
 	void enableInterpreter() { startInterpreter(); };
+	void showConsole(); 
+	void hideConsole();
+	void toggleConsole();
+	void printOnConsole(const char *text);
 	void quitInterpreter();
 	bool isInterpreterRunning();
 	FILE* out;
@@ -55,6 +62,7 @@ protected:
 	bool running;
 	char rswitch[128];
 	char pswitch[128];
+	BPSConsole* console;
 }; 
 
 #endif // BPSWIDGET_H

@@ -15,35 +15,41 @@
 **
 *****************************************************************************/
 #include "BGhostview.h"
+#include "BGVDropTarget.h"
+
+#ifndef BUFSIZE
+#define BUFSIZE 1024
+#endif
 
 BGhostview::BGhostview( BRect frame, const char *name )
 	: BWindow( frame,name,B_DOCUMENT_WINDOW,0)
 {   
   tempFile=NULL;
+  filePanel=NULL;
 	psfile=0;
 	doc=0;
-  current_page=0;
+  current_page=-1;
   num_parts=0;
   for(int part_count=0;part_count<10;part_count++) {
     	pages_in_part[part_count]=0;}
     
 	magstep = 9;
-	int nRecent = 5;
+	pagemedia=0;
 	lastOpened=new BList();	
 	readSettings();    	
 	app_info info;
 	if (be_app->GetAppInfo(&info) != B_OK) {
-		BAlert *d = new BAlert("Error","Couldn't locate application directory.\nUsing /boot/home/tmp as temp-dir.\nIcon will not be available","Ok");
+		BAlert *d = new BAlert("Error","Could not locate application directory.\nUsing /boot/apps/Ghostscript instead.","Ok");
 		d->Go();
-		tempDir = NULL;
-		strcpy(psTmp,"/boot/home/tmp/");
+		tempDir = "/boot/apps/Ghostscript";
+		strcpy(psTmp,"/boot/apps/Ghostscript/");
 		}
 	else {
 	  BEntry entry(&info.ref);
     BPath path;
     entry.GetPath(&path);
     path.GetParent(&path);
-		tempDir=new char[B_FILE_NAME_LENGTH];
+		tempDir=new char[B_PATH_NAME_LENGTH];
 		strcpy(tempDir,path.Path());
 		strcpy(psTmp,tempDir);
 		strcat(psTmp,"/");
@@ -52,9 +58,10 @@ BGhostview::BGhostview( BRect frame, const char *name )
   AddChild(menuBar);
 	toolBar = (AToolBar *)createToolbar(BRect(0,menuBar->Bounds().Height()+1,frame.Width(),25));
 	AddChild(toolBar);
-	BView *mainView = new BView(BRect(0,menuBar->Bounds().Height()+toolBar->Bounds().Height()+1,frame.Width(),frame.Height()),"GVMainView",B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS);
-	int width=mainView->StringWidth("0000 0000");
+	BView *mainView = new BGVDropTarget(this, BRect(0,menuBar->Bounds().Height()+toolBar->Bounds().Height()+1,frame.Width(),frame.Height()),"GVMainView",B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS);
+	int width=(int) mainView->StringWidth("0000 0000");
 	marklist = new BListView(BRect(3,4,width,mainView->Bounds().Height()-B_H_SCROLL_BAR_HEIGHT),"Marks",B_MULTIPLE_SELECTION_LIST, B_FOLLOW_ALL_SIDES, B_WILL_DRAW);
+	marklist->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
   mainView->AddChild(new BScrollView("ScrollMarks",marklist, B_FOLLOW_LEFT | B_FOLLOW_TOP_BOTTOM, B_FULL_UPDATE_ON_RESIZE, false, true));
   page = new BPSWidget(BRect(width+5+B_V_SCROLL_BAR_WIDTH,4,mainView->Bounds().Width()-B_H_SCROLL_BAR_HEIGHT,mainView->Bounds().Height()-B_V_SCROLL_BAR_WIDTH),"PSView", tempDir);
   scrollView =new BScrollView("ScrollPage",page, B_FOLLOW_ALL, B_WILL_DRAW, true, true);
@@ -63,28 +70,31 @@ BGhostview::BGhostview( BRect frame, const char *name )
   marklist->SetSelectionMessage(new BMessage(BGV_SELECT_PAGE));
   marklist->SetInvocationMessage(new BMessage(BGV_INVOKE_PAGE));
   AddChild(mainView);
-
+ 
 	printSelection = 1;
 	printerName = "lp0";
 	
 	
 	Show();
 }
-
+ 
 void BGhostview::MessageReceived(BMessage *message) {
 	switch (message->what) {
-	case BGV_OLD_FILE: openNewFile(); 
+	case BGV_OLD_FILE: openLoadPanel(); 
 		break;
 	case BGV_OPEN_RECENT:
 		BMenuItem* item;
-		message->FindPointer("source", &item);
+		message->FindPointer("source", (void**)&item);
 		openFile(item->Label());
 		break;
+  case BGV_CONSOLE: page->toggleConsole();  break;
   case BGV_REDISPLAY: show_page(current_page); 
   	break;
-  case BGV_PAGE_SETUP: //viewControl(); 
+  case BGV_PRINT_ALL: print(); 
   	break;
-  case BGV_PRINT: print(); 
+  case BGV_SAVE_ALL: openSaveAllPanel(); 
+  	break;
+  case BGV_SAVE_MARKED: openSaveMarkedPanel(); 
   	break;
   case BGV_ZOOMIN: zoomIn(); 
   	break;
@@ -141,25 +151,45 @@ void BGhostview::MessageReceived(BMessage *message) {
 				openFile(path.Path());
   	}}; 
   	break;
+  case BGV_SAVE_MARKED_REFS:
+  case BGV_SAVE_ALL_REFS: {
+    uint32 type;
+    int32 count;
+    entry_ref ref;
+    const char *fname=new char[B_PATH_NAME_LENGTH];
+		message->GetInfo("directory",&type,&count);
+    if (type == B_REF_TYPE && message->FindRef("directory",count-1,&ref)==B_OK) {
+    	message->GetInfo("name",&type,&count);
+    	if (type==B_STRING_TYPE && message->FindString("name",&fname)==B_OK) {
+    		BEntry entry(&ref);
+    		BPath path;
+    		entry.GetPath(&path);
+    		path.Append(fname);
+    		printToFile(path.Path(),message->what==BGV_SAVE_ALL_REFS);
+  	}}
+  }; 
+  	break;
   case BGV_SET_MAGSTEP: 
  		set_magstep(message->FindInt32("index"));
     break;
   case BGV_SET_MEDIA: 
  		set_pagemedia(message->FindInt32("index"));
- 		show_page(current_page);
     break;
-  default:
+  default: 
     BWindow::MessageReceived(message);
   };
 }; 
 
-BGhostview::~BGhostview()
-{
+void BGhostview::Quit() {
+	writeSettings();
+	if (page->isInterpreterRunning()) page->quitInterpreter(); 
 	if (tempFile!=NULL) remove(tempFile);
-}
+	if (psfile!=NULL) fclose(psfile);
+	for (int i=0; i<10; i++) delete icons[i];
+	BWindow::Quit();
+}	
 
 bool BGhostview::QuitRequested() {
-	if (page->isInterpreterRunning()) page->quitInterpreter(); 
 	be_app->PostMessage(B_QUIT_REQUESTED);
 	return true;
 };
@@ -187,7 +217,7 @@ void BGhostview::about()
 {
 	BAlert *d = new BAlert("About","BGhostview\n\nAuthor: Andreas Raquet\n\n"\
 	"based on\n\nKGhostview by Mark Donohoe and\n"\
-	"Ghostview by Tim Teisen\n\nRequires Aladdin Ghostscript",
+	"Ghostview by Tim Teisen\n\nRequires Aladdin Ghostscript port by Jake Hamby",
 	"Ok",NULL,NULL,B_WIDTH_AS_USUAL,B_INFO_ALERT);
 	d->Go();
 }
@@ -205,15 +235,21 @@ BView *BGhostview::createMenubar(BRect frame)
  	m_file = new BMenu("File");
 	m_file->AddItem(new BMenuItem("Open...", new BMessage(BGV_OLD_FILE)));
 	m_file->AddItem(m_recent);
+	item=new BMenuItem("Save as...", new BMessage(BGV_SAVE_ALL));
+	item->SetEnabled(false);
+	m_file->AddItem(item);
+	item=new BMenuItem("Save marked...", new BMessage(BGV_SAVE_MARKED));
+	item->SetEnabled(false);
+	m_file->AddItem(item);
 	m_file->AddSeparatorItem();
 	item=new BMenuItem("Reload", new BMessage(BGV_REDISPLAY));
 	item->SetEnabled(false);
 	m_file->AddItem(item);
   m_file->AddSeparatorItem();
-	item=new BMenuItem("Page Setup", new BMessage(BGV_PAGE_SETUP));
+	item=new BMenuItem("Print...", new BMessage(BGV_PRINT_ALL));
 	item->SetEnabled(false);
 	m_file->AddItem(item);
-	item=new BMenuItem("Print...", new BMessage(BGV_PRINT));
+	item=new BMenuItem("Print marked...", new BMessage(BGV_PRINT_MARKED));
 	item->SetEnabled(false);
 	m_file->AddItem(item);
   m_file->AddSeparatorItem();
@@ -273,6 +309,7 @@ BView *BGhostview::createMenubar(BRect frame)
 
 	m_help->AddItem(new BMenuItem("About...", new BMessage(BGV_ABOUT)));
 	m_help->AddItem(new BMenuItem("Copyright", new BMessage(BGV_COPYRIGHT)));
+	m_help->AddItem(new BMenuItem("GS Console", new BMessage(BGV_CONSOLE)));
 	
   menubar = new BMenuBar(frame,"BGV_Menubar");
     
@@ -288,34 +325,40 @@ BView* BGhostview::createToolbar(BRect frame)
 {
 	AToolBar *toolBar=new AToolBar(frame,"BGV_Toolbar");
 	if (tempDir!=NULL) {
-		char iconName[B_FILE_NAME_LENGTH];
-		sprintf(iconName,"%s%s",tempDir,"/icons/fileopen.xpm");
-		toolBar->AddIcon(iconName,"open",new BMessage(BGV_OLD_FILE));
-		sprintf(iconName,"%s%s",tempDir,"/icons/reload.xpm");
-		toolBar->AddIcon(iconName,"reload",new BMessage(BGV_REDISPLAY),false);
-		sprintf(iconName,"%s%s",tempDir,"/icons/printpage.xpm");
-		toolBar->AddIcon(iconName,"printpage",new BMessage(BGV_PRINT),false);
-		sprintf(iconName,"%s%s",tempDir,"/icons/zoomin.xpm");
-		toolBar->AddIcon(iconName,"zoomin",new BMessage(BGV_ZOOMIN),false);
-		sprintf(iconName,"%s%s",tempDir,"/icons/zoomout.xpm");
-		toolBar->AddIcon(iconName,"zoomout",new BMessage(BGV_ZOOMOUT),false);
-		sprintf(iconName,"%s%s",tempDir,"/icons/firstpage.xpm");
-		toolBar->AddIcon(iconName,"firstpage",new BMessage(BGV_GOTO_START),false);
-		sprintf(iconName,"%s%s",tempDir,"/icons/prevpage.xpm");
-		toolBar->AddIcon(iconName,"prevpage",new BMessage(BGV_PREV_PAGE),false);
-		sprintf(iconName,"%s%s",tempDir,"/icons/next.xpm");
-		toolBar->AddIcon(iconName,"page",new BMessage(BGV_READ_DOWN),false);
-		sprintf(iconName,"%s%s",tempDir,"/icons/nextpage.xpm");
-		toolBar->AddIcon(iconName,"nextpage",new BMessage(BGV_NEXT_PAGE),false);
-		sprintf(iconName,"%s%s",tempDir,"/icons/lastpage.xpm");
-		toolBar->AddIcon(iconName,"lastpage",new BMessage(BGV_GOTO_END),false);};
+		icons[0] = BTranslationUtils::GetBitmap("fileopen");
+		icons[1] = BTranslationUtils::GetBitmap("reload");
+		icons[2]  = BTranslationUtils::GetBitmap("printpage");
+		icons[3]  = BTranslationUtils::GetBitmap("zoomin");
+		icons[4]  = BTranslationUtils::GetBitmap("zoomout");
+		icons[5]  = BTranslationUtils::GetBitmap("firstpage");
+		icons[6]  = BTranslationUtils::GetBitmap("prevpage");
+		icons[7]  = BTranslationUtils::GetBitmap("next");
+		icons[8]  = BTranslationUtils::GetBitmap("nextpage");
+		icons[9]  = BTranslationUtils::GetBitmap("lastpage");
+		if (icons[0] && icons[1] && icons[2] && icons[3] && icons[4] && icons[5] && icons[6] && icons[7] && icons[8] && icons[9]) {
+			toolBar->AddIcon(icons[0] ,"fileopen", new BMessage(BGV_OLD_FILE));
+			toolBar->AddIcon(icons[1] ,"reload",new BMessage(BGV_REDISPLAY),false);
+			toolBar->AddIcon(icons[2] ,"printpage",new BMessage(BGV_PRINT_ALL),false);
+			toolBar->AddIcon(icons[3] ,"zoomin",new BMessage(BGV_ZOOMIN),false);
+			toolBar->AddIcon(icons[4] ,"zoomout",new BMessage(BGV_ZOOMOUT),false);
+			toolBar->AddIcon(icons[5] ,"firstpage",new BMessage(BGV_GOTO_START),false);
+			toolBar->AddIcon(icons[6] ,"prevpage",new BMessage(BGV_PREV_PAGE),false);
+			toolBar->AddIcon(icons[7] ,"page",new BMessage(BGV_READ_DOWN),false);
+			toolBar->AddIcon(icons[8] ,"nextpage",new BMessage(BGV_NEXT_PAGE),false);
+			toolBar->AddIcon(icons[9] ,"lastpage",new BMessage(BGV_GOTO_END),false);};
+	}
+	else {
+		BAlert *d = new BAlert("Error","Could not locate icons.\nMake sure XPMTranslator is installed.","Ok");
+		d->Go();
+	}
+
 	BPopUpMenu *magMenu=new BPopUpMenu("100%");
 	BMenuItem *item;
 	for (int i = 1; i<=10; i++) {
 		char *magStr = new char[6];
 		sprintf(magStr,"%d0%%",i);
 		item=new BMenuItem(magStr, new BMessage(BGV_SET_MAGSTEP));
-		if (i==10) item->SetMarked(true);
+		if (i==magstep+1) item->SetMarked(true);
 		magMenu->AddItem(item);};
 	item=new BMenuItem("125%", new BMessage(BGV_SET_MAGSTEP));
 	magMenu->AddItem(item);
@@ -344,9 +387,11 @@ BView* BGhostview::createToolbar(BRect frame)
 	//toolBar->AddView(orientationBar);
 	BPopUpMenu *paperMenu=new BPopUpMenu("Document");
 	item=new BMenuItem("Document", new BMessage(BGV_SET_MEDIA));
+	if (0==pagemedia) item->SetMarked(true);
 	paperMenu->AddItem(item);
 	for (int i = 0; papersizes[i].name; i++) {
 		item=new BMenuItem(papersizes[i].name, new BMessage(BGV_SET_MEDIA));
+		if (i+1==pagemedia) item->SetMarked(true);
 		paperMenu->AddItem(item);
 	}; 
 	paperBar = new BMenuField(BRect(0,0,100,25),"BGV_PaperBar",NULL,paperMenu);
@@ -361,52 +406,92 @@ void BGhostview::readSettings()
 	Preferences prefs("x-vnd.raquet-bghostview");
 	if (prefs.InitCheck()) {
 		for (int i=0; i<5 ;i++) {
-		char *s = new char[B_FILE_NAME_LENGTH];
+		char *s = new char[B_PATH_NAME_LENGTH];
 		s[0]=0;
 		lastOpened->AddItem(s);};
 		return;};
 	PreferenceSet set(prefs,"BGhostview",true);
 	if (set.InitCheck()) {
 		for (int i=0; i<5 ;i++) {
-		char *s = new char[B_FILE_NAME_LENGTH];
+		char *s = new char[B_PATH_NAME_LENGTH];
 		s[0]=0;
 		lastOpened->AddItem(s);};
 		return;};
 	const void* data;
 	ssize_t size;
 	uint32 type='    ';
-	char *s = new char[B_FILE_NAME_LENGTH];
+	char *s = new char[B_PATH_NAME_LENGTH];
 	if(!set.GetData("Recent0",data, size, type)) {
 		memcpy(s,data,size);	}
 	else
 		s[0]=0;
 	lastOpened->AddItem(s);
-	s = (char *) malloc(B_FILE_NAME_LENGTH);
+	s = (char *) malloc(B_PATH_NAME_LENGTH);
 	if(!set.GetData("Recent1",data, size, type)) {
 		memcpy(s,data,size);	}
 	else
 		s[0]=0;
 	lastOpened->AddItem(s);
-	s = new char[B_FILE_NAME_LENGTH];
+	s = new char[B_PATH_NAME_LENGTH];
 	if(!set.GetData("Recent2",data, size, type))
 		memcpy(s,data,size);	
 	else
 		s[0]=0;
 	lastOpened->AddItem(s);
-	s = new char[B_FILE_NAME_LENGTH];
+	s = new char[B_PATH_NAME_LENGTH];
 	if(!set.GetData("Recent3",data, size, type))
 		memcpy(s,data,size);	
 	else
 		s[0]=0;
 	lastOpened->AddItem(s);
-	s = new char[B_FILE_NAME_LENGTH];
+	s = new char[B_PATH_NAME_LENGTH];
 	if(!set.GetData("Recent4",data, size, type))
 		memcpy(s,data,size);	
 	else
 		s[0]=0;
 	lastOpened->AddItem(s);
+	if (!set.GetData("Zoom",data,size,type))
+		magstep = *((int*) data);
+	else magstep=9;	
+	if (!set.GetData("Pagemedia",data,size,type))
+		pagemedia = *((int*) data);
+	else pagemedia=0;	
 }
 
+void BGhostview::writeSettings() {
+	Preferences prefs("x-vnd.raquet-bghostview");
+	PreferenceSet set(prefs,"BGhostview",true);
+	set.SetData("Recent0",lastOpened->ItemAt(0), B_PATH_NAME_LENGTH);
+	set.SetData("Recent1",lastOpened->ItemAt(1), B_PATH_NAME_LENGTH);
+	set.SetData("Recent2",lastOpened->ItemAt(2), B_PATH_NAME_LENGTH);
+	set.SetData("Recent3",lastOpened->ItemAt(3), B_PATH_NAME_LENGTH);
+	set.SetData("Recent4",lastOpened->ItemAt(4), B_PATH_NAME_LENGTH);
+	set.SetData("Zoom",&magstep, sizeof(int));
+	set.SetData("Pagemedia",&pagemedia, sizeof(int));
+	set.SetData("Bounds",&Frame(),sizeof(BRect));
+	set.Save();
+};
+
+void BGhostview::updateRecentList() {
+	if (!strcmp(filename,(char *) lastOpened->ItemAt(0))) return;
+	if (!strcmp(filename,(char *) lastOpened->ItemAt(1))) return;
+	if (!strcmp(filename,(char *) lastOpened->ItemAt(2))) return;
+	if (!strcmp(filename,(char *) lastOpened->ItemAt(3))) return;
+	if (!strcmp(filename,(char *) lastOpened->ItemAt(4))) return;
+	int count = m_recent->CountItems();
+	for (int i=0; i<count; i++)
+		delete m_recent->RemoveItem(0l);
+	void *ofname=lastOpened->LastItem();
+	lastOpened->RemoveItem(ofname);
+	delete ofname;
+	char *fname = new char[B_PATH_NAME_LENGTH];
+	strcpy(fname,filename);
+	lastOpened->AddItem(fname,0);
+	int32 items = lastOpened->CountItems();
+	for( int i=0; i<items; i++ ) {
+		m_recent->AddItem(new BMenuItem((const char*) lastOpened->ItemAt(i), new BMessage(i)));
+	}
+};
 
 void BGhostview::readDown()
 {
@@ -533,11 +618,30 @@ void BGhostview::prevPage()
     scrollTop();
 }
 
-void BGhostview::openNewFile()
+void BGhostview::openLoadPanel()
 {
-	BFilePanel* p=new BFilePanel();
-	p->SetTarget(this);
-	p->Show();
+	if (filePanel==NULL) {
+		filePanel=new BFilePanel(B_OPEN_PANEL,NULL,NULL,0,false);
+		}
+	filePanel->Show();
+}
+
+void BGhostview::openSaveAllPanel()
+{
+	if (savePanel==NULL) {
+		savePanel=new BFilePanel(B_SAVE_PANEL,NULL,NULL,0,false);
+		}
+	savePanel->SetMessage(&BMessage(BGV_SAVE_ALL_REFS));
+	savePanel->Show();
+}
+
+void BGhostview::openSaveMarkedPanel()
+{
+	if (savePanel==NULL) {
+		savePanel=new BFilePanel(B_SAVE_PANEL,NULL,NULL,0,false);
+		}
+	savePanel->SetMessage(&BMessage(BGV_SAVE_MARKED_REFS));
+	savePanel->Show();
 }
 
 void BGhostview::printStart( int mode, bool reverseOrder, 
@@ -595,40 +699,6 @@ void BGhostview::printStart( int mode, bool reverseOrder,
 	delete ml;*/
 }
 
-char* BGhostview::printToFile( bool allMode, char **ml )
-{
-	/*FILE *pswrite;
-
-	if ( allMode ) {
-		QString buf( i18n(	"You chose to print all pages to a file.\n"
-					"This would produce a document identical to\n"
-					"that currently loaded into the viewer.\n"
-					"There is no need to print all pages into a new file.") );
-		return buf;
-	}
-	
-	QString dir;
-	if ( filename )
-		dir = QFileInfo( filename ).dirPath();	
-	
-	QString s = QFileDialog::getSaveFileName( dir, "*.*ps*", this);
-	if ( s.isNull() ) {
-		QString buf( i18n(	"No file name was given so\n"\
-					"nothing could be printed to a file.\n") );
-		return buf;
-	}
-	
-    if ( ( pswrite = fopen( s.data(), "w" ) ) == 0L ) {
-		QString buf;
-		buf.sprintf( "Attempt to open file for writing failed.\n\n"\
-						"Error: %s\n", strerror( errno ) );
-		return buf;
-    } else {
-		psCopyDoc( pswrite, ml );
-		fclose( pswrite );
-		return 0;
-    }*/
-}
 
 char* BGhostview::printToPrinter( char* printerName, char* spoolerCommand,
 						char* printerVariable, bool allMode, char **ml )
@@ -680,104 +750,46 @@ char* BGhostview::printToPrinter( char* printerName, char* spoolerCommand,
     return( ret_val );*/
 }
 
-// length calculates string length at compile time
-// can only be used with character constants
 
-#define length( a ) ( sizeof( a ) - 1 )
-
-// Copy the headers, marked pages, and trailer to fp
-
-/*void BGhostview::psCopyDoc( FILE *fp, char **ml )
-{
-    printf("KGhostview::pscopydoc\n");
-	
-    FILE *psfile;
-    char text[ PSLINELENGTH ];
-    char *comment;
-    Bool pages_written = False;
-    Bool pages_atend = False;
-    int pages = 0;
-    int page = 1;
-    unsigned int i;
-    long here;
-
-    psfile = fopen( filename, "r" );
-
-	pages = ml->count();
-    if ( pages == 0 ) {
-		KMsgBox::message( 0, i18n( "Error printing" ),
-			i18n(	"Printing failed because the list of\n"\
-					"pages to be printed was empty.\n" ) );
-		return;
-    }
-
-    here = doc->beginheader;
-    while ( ( comment = pscopyuntil( psfile, fp, here,
-				doc->endheader, "%%Pages:" ) ) ) {
-		here = ftell( psfile );
-		if ( pages_written || pages_atend ) {
-	    	free( comment );
-	    	continue;
+void BGhostview::printToFile(char *destFile, bool all) {
+	FILE *out;
+	if (toc_text) {
+		int32 max=marklist->CountItems();
+		int numpages=0;
+		char pages[max+1];
+		for (int i=0; i<max; i++) {
+			BGVPageItem *item = (BGVPageItem *) marklist->ItemAt(i);
+			if (item->IsSelected() || all) {
+				pages[i]='*';
+				numpages++;
+			}
+			else pages[i]='-';
+			}
+		pages[max]=0;
+		if (numpages>0) {
+			out = fopen(destFile,"w");
+			fseek(psfile,0,SEEK_SET);
+			pscopydoc(out,psfile,doc,pages);
+			fclose(out);
 		}
-		sscanf( comment + length("%%Pages:" ), "%s", text );
-		if ( strcmp( text, "(atend)" ) == 0 ) {
-	    	fputs( comment, fp );
-	    	pages_atend = True;
-		} else {
-	    	switch ( sscanf( comment + length( "%%Pages:" ), "%*d %d", &i ) ) {
-			case 1:
-		    	fprintf( fp, "%%%%Pages: %d %d\n", pages, i );
-		    	break;
-			default:
-		    	fprintf( fp, "%%%%Pages: %d\n", pages );
-		    	break;
-	    	}
-	    	pages_written = True;
+		else {
+			BAlert *d = new BAlert("Error","No pages are marked.\nSaving would create an empty file.","Abort");
+			d->Go();
 		}
-		free(comment);
-    }
-    pscopy( psfile, fp, doc->beginpreview, doc->endpreview );
-    pscopy( psfile, fp, doc->begindefaults, doc->enddefaults );
-    pscopy( psfile, fp, doc->beginprolog, doc->endprolog );
-    pscopy( psfile, fp, doc->beginsetup, doc->endsetup );
-	
-	QStrListIterator it( *ml );
-	
-	for(; it.current(); ++it ) {
-		
-		i = QString( it.current() ).toInt() - 1;
-	
-	    comment = pscopyuntil( psfile, fp, doc->pages[i].begin,
-				  					doc->pages[i].end, "%%Page:" );
-	    
-		fprintf( fp, "%%%%Page: %s %d\n",
-		    		doc->pages[i].label, page++ );
-	    
-		free( comment );
-	    pscopy( psfile, fp, -1, doc->pages[i].end );
 	}
-
-    here = doc->begintrailer;
-    while ( ( comment = pscopyuntil(psfile, fp, here,
-				 			doc->endtrailer, "%%Pages:" ) ) ) {
-		here = ftell( psfile );
-		if ( pages_written ) {
-	    	free( comment );
-	    	continue;
+	else { // copy if only one page in source or source unknown
+		char buf[BUFSIZE];
+		int bytes = fread(buf,sizeof(char),BUFSIZE, psfile);
+		out = fopen(destFile,"w");
+		fseek(psfile,0,SEEK_SET);
+		while (bytes==BUFSIZE) {
+			fwrite(buf,sizeof(char),bytes,out); 
+			bytes = fread(buf,sizeof(char),BUFSIZE, psfile);
 		}
-		switch ( sscanf( comment + length( "%%Pages:" ), "%*d %d", &i ) ) {
-	    	case 1:
-			fprintf( fp, "%%%%Pages: %d %d\n", pages, i );
-			break;
-	    	default:
-			fprintf( fp, "%%%%Pages: %d\n", pages );
-			break;
-		}
-		pages_written = True;
-		free( comment );
-    }
-    fclose( psfile );
-}*/
+		fwrite(buf,sizeof(char),bytes,out);
+		fclose(out); 
+	}
+};
 
 void BGhostview::openFile(const char* name ) {
   FILE *fp;
@@ -837,12 +849,17 @@ void	BGhostview::setup()
 		// 18/3/98 Jake Hamby patch - slightly changed for BeOS-port
 		char *filename_dscP = 0;
 		char *filename_uncP = 0;
-		const char *cmd_scan_pdf = "gs -dNODISPLAY -dQUIET -sPDFname=%s -sDSCname=%s pdf2dsc.ps -c quit";
+		char *error_name=0;
+		char *error_details=0;
+		const char cmd_scan_pdf[512];
+		strcpy(cmd_scan_pdf, tempDir);
+		strcat(cmd_scan_pdf,"/Ghostscript/bin/gs -dNODISPLAY -dQUIET -sPDFname=\"%s\" -sDSCname=\"%s\" pdf2dsc.ps -c quit");
 		const char *cmd_uncompress = "gzip -d -c %s > %s";
-		doc = psscan(&psfile, filename,psTmp, &filename_dscP,cmd_scan_pdf, &filename_uncP, cmd_uncompress);
-	if (doc==0) {
-		BAlert *alert=new BAlert("BGhostview Error","Document does not exist","Ok");
-		alert->Go();};
+		doc = psscan(&psfile, filename,psTmp, &filename_dscP,cmd_scan_pdf, &filename_uncP, cmd_uncompress, &error_name, &error_details);
+		if (error_name[0]!=0) {
+			BAlert *d = new BAlert(error_name,error_details,"Ok");
+			d->Go();
+		}	
 	if (tempFile!=NULL) {
 		remove(tempFile);
 		delete tempFile;
@@ -851,13 +868,13 @@ void	BGhostview::setup()
 	if(filename_dscP!=NULL) {
 		strcpy(filename,filename_dscP);
 		free(filename_dscP);
-		tempFile= new char[B_FILE_NAME_LENGTH];
+		tempFile= new char[B_PATH_NAME_LENGTH];
 		strcpy(tempFile,filename);}
 
 	if (filename_uncP!=NULL) {
 		strcpy(filename,filename_uncP);
 		free(filename_uncP);
-		tempFile= new char[B_FILE_NAME_LENGTH];
+		tempFile= new char[B_PATH_NAME_LENGTH];
 		strcpy(tempFile,filename);}
 	// end of patch
   }
@@ -909,14 +926,12 @@ void	BGhostview::setup()
 		page->filename=filename;
 		Lock();
 		BGVPageItem *item;
-		if (!doc->epsf)
-			item= new BGVPageItem(&doc->pages[0]);
-		else { // epsf-files occasionally do not contain any pages -- create a dummy page
-			struct page *ref = (struct page *) malloc(sizeof(struct page));
-			page->filename=filename;
-			ref->label=new char[strlen("EPS")+1];
-			strcpy(ref->label,"EPS");
-			item= new BGVPageItem(ref);};
+		struct page *ref = (struct page *) malloc(sizeof(struct page));
+		page->filename=filename;
+		ref->label=new char[strlen("EPS")+1];
+		if (doc && doc->epsf) strcpy(ref->label,"EPS");
+		else strcpy (ref->label,"1");
+		item= new BGVPageItem(ref);
 		marklist->AddItem(item,0);
 		Unlock();
     }
@@ -926,11 +941,15 @@ void	BGhostview::setup()
 			pages_in_part[0]=doc->numpages;}		
 	}
 	
-	set_pagemedia(0);
+	set_pagemedia(pagemedia);
 		
-	if(current_page==-1) current_page=0;
+	current_page=0;
 
-	m_file->ItemAt(3)->SetEnabled(true);
+	if (doc && doc->pdf) m_file->ItemAt(2)->SetEnabled(false);
+	else m_file->ItemAt(2)->SetEnabled(true);
+	if (doc && !doc->pdf) m_file->ItemAt(3)->SetEnabled(true);
+	else m_file->ItemAt(3)->SetEnabled(false);
+	m_file->ItemAt(5)->SetEnabled(true);
 	m_view->ItemAt(2)->SetEnabled(true);
 	Lock();
 	m_go->ItemAt(5)->SetEnabled(true);
@@ -948,32 +967,6 @@ void	BGhostview::setup()
 	Unlock();
 }
 
-void BGhostview::updateRecentList() {
-	if (!strcmp(filename,(char *) lastOpened->ItemAt(0))) return;
-	if (!strcmp(filename,(char *) lastOpened->ItemAt(1))) return;
-	if (!strcmp(filename,(char *) lastOpened->ItemAt(2))) return;
-	if (!strcmp(filename,(char *) lastOpened->ItemAt(3))) return;
-	if (!strcmp(filename,(char *) lastOpened->ItemAt(4))) return;
-	int count = m_recent->CountItems();
-	for (int i=0; i<count; i++)
-		delete m_recent->RemoveItem(0l);
-	char *ofname=(char *)lastOpened->RemoveItem(lastOpened->LastItem());
-	char *fname = new char[B_FILE_NAME_LENGTH];
-	strcpy(fname,filename);
-	lastOpened->AddItem(fname,0);
-	int32 items = lastOpened->CountItems();
-	for( int i=0; i<items; i++ ) {
-		m_recent->AddItem(new BMenuItem((const char*) lastOpened->ItemAt(i), new BMessage(i)));
-	}
-	Preferences prefs("x-vnd.raquet-bghostview");
-	PreferenceSet set(prefs,"BGhostview",true);
-	set.SetData("Recent0",lastOpened->ItemAt(0), B_FILE_NAME_LENGTH);
-	set.SetData("Recent1",lastOpened->ItemAt(1), B_FILE_NAME_LENGTH);
-	set.SetData("Recent2",lastOpened->ItemAt(2), B_FILE_NAME_LENGTH);
-	set.SetData("Recent3",lastOpened->ItemAt(3), B_FILE_NAME_LENGTH);
-	set.SetData("Recent4",lastOpened->ItemAt(4), B_FILE_NAME_LENGTH);
-	set.Save();
-};
 
 void BGhostview::new_file( int number )
 {
@@ -988,63 +981,14 @@ void BGhostview::new_file( int number )
 }
 
 void BGhostview::set_pagemedia(int number) {
-	if (number==0) page->pagemedia=NULL;
-	else page->pagemedia=papersizes[number-1].name;
-	};
-
-void BGhostview::show_page(int number)
-{
-  Lock();
-  BGVPageItem *item = (BGVPageItem *) marklist->ItemAt(current_page);
-  if (item) {
-  	item->showing=false;
-   	marklist->InvalidateItem(current_page);};
-	if (toc_text) {
-		m_go->ItemAt(1)->SetEnabled(number+1<doc->numpages);
-		m_go->ItemAt(4)->SetEnabled(number+1<doc->numpages);
-		toolBar->ItemAt(8)->SetEnabled(number+1<doc->numpages);
-		toolBar->ItemAt(9)->SetEnabled(number+1<doc->numpages);
-		m_go->ItemAt(0)->SetEnabled(number>0);
-		m_go->ItemAt(3)->SetEnabled(number>0);
-		toolBar->ItemAt(5)->SetEnabled(number>0);
-		toolBar->ItemAt(6)->SetEnabled(number>0);} 
-	else { 
-		m_go->ItemAt(1)->SetEnabled(false);
-		m_go->ItemAt(4)->SetEnabled(false);
-		toolBar->ItemAt(8)->SetEnabled(false);
-		toolBar->ItemAt(9)->SetEnabled(false);
-		m_go->ItemAt(0)->SetEnabled(false);
-		m_go->ItemAt(3)->SetEnabled(false);
-		toolBar->ItemAt(5)->SetEnabled(false);
-		toolBar->ItemAt(6)->SetEnabled(false);} 
-  Unlock();
-
-  if (toc_text) {
-		if ((unsigned int)number >= doc->numpages) number = doc->numpages - 1;
-		if (number < 0) number = 0;		}
-        
-	if (page->isInterpreterRunning()) page->disableInterpreter();
-  if (toc_text) {
-		current_page = number;
-		page->sendPS(psfile, doc->beginheader, doc->lenheader, false);
-		page->sendPS(psfile, doc->beginprolog, doc->lenprolog, false);
-		page->sendPS(psfile, doc->beginsetup, doc->lensetup, false);
-		page->sendPS(psfile, doc->pages[current_page].begin, doc->pages[current_page].len, false);
-		page->enableInterpreter();
-  } 
-  else 
-	  page->enableInterpreter();  
- 	Lock();
-  item = (BGVPageItem *) marklist->ItemAt(current_page);
-  if (item) {
-  	item->showing=true;
-  	marklist->InvalidateItem(current_page);};
-	Unlock();
-}
+		if (number==0) page->pagemedia=NULL;
+		else page->pagemedia=papersizes[number-1].name;
+ 		if (current_page>=0) show_page(current_page);
+};
 
 void BGhostview::set_magstep(int i)
 {
-	int newMagstep;
+	int newMagstep=0;
 	switch (i) {
 	case 0:newMagstep=32; break;
 	case 1:newMagstep=45; break;
@@ -1070,7 +1014,54 @@ void BGhostview::set_magstep(int i)
 	m_view->ItemAt(1)->SetEnabled(magstep>0);
 	page->xdpi=newMagstep*75.0/100;
 	page->ydpi=newMagstep*75.0/100;
-	show_page(current_page);
+	if (current_page>=0) show_page(current_page); 
+}
+
+void BGhostview::show_page(unsigned int number)
+{
+	if (number==-1) return;
+  Lock();
+  BGVPageItem *item = (BGVPageItem *) marklist->ItemAt(current_page);
+  if (item) {
+  	item->showing=false;
+   	marklist->InvalidateItem(current_page);};
+  if (toc_text) {
+		if (number >= doc->numpages) number = doc->numpages - 1;
+		if (number < 0) number = 0;	
+		m_go->ItemAt(1)->SetEnabled(number+1<doc->numpages);
+		m_go->ItemAt(4)->SetEnabled(number+1<doc->numpages);
+		toolBar->ItemAt(8)->SetEnabled(number+1<doc->numpages);
+		toolBar->ItemAt(9)->SetEnabled(number+1<doc->numpages);
+		m_go->ItemAt(0)->SetEnabled(number>0);
+		m_go->ItemAt(3)->SetEnabled(number>0);
+		toolBar->ItemAt(5)->SetEnabled(number>0);
+		toolBar->ItemAt(6)->SetEnabled(number>0);
+		current_page = number;}
+	else { 
+		m_go->ItemAt(1)->SetEnabled(false);
+		m_go->ItemAt(4)->SetEnabled(false);
+		toolBar->ItemAt(8)->SetEnabled(false);
+		toolBar->ItemAt(9)->SetEnabled(false);
+		m_go->ItemAt(0)->SetEnabled(false);
+		m_go->ItemAt(3)->SetEnabled(false);
+		toolBar->ItemAt(5)->SetEnabled(false);
+		toolBar->ItemAt(6)->SetEnabled(false);} 
+  item = (BGVPageItem *) marklist->ItemAt(current_page);
+  if (item) {
+  	item->showing=true;
+  	marklist->InvalidateItem(current_page);};
+  Unlock();
+        
+	if (page->isInterpreterRunning()) page->disableInterpreter();
+  if (toc_text) {
+		page->sendPS(psfile, doc->beginheader, doc->lenheader, false);
+		page->sendPS(psfile, doc->beginprolog, doc->lenprolog, false);
+		page->sendPS(psfile, doc->beginsetup, doc->lensetup, false);
+		page->sendPS(psfile, doc->pages[current_page].begin, doc->pages[current_page].len, false);
+		page->enableInterpreter();
+  } 
+  else 
+	  page->enableInterpreter();  
 }
 
 

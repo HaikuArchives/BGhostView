@@ -18,7 +18,7 @@
 #include "BPSWidget.h"
 #include <string.h>
 #include <ctype.h>
-#include <unistd.be.h>
+#include <unistd.h>
 
 extern "C" { 
 void gsdll_draw(unsigned char *device, BView *view, BRect dest, BRect src); 
@@ -49,7 +49,8 @@ int gsdll_call(int message, char *str, unsigned long count) {
 				displayComplete=true;
         return strlen(str);
 				break;
-    case 2: 
+    case 2: 	
+	    if (!displayComplete) painter->printOnConsole(str);
 				return count;
 				break;
     case 3: 
@@ -80,6 +81,7 @@ long gsloop(void* psview) {
 	gs_call[gs_arg++] = "gs";
 	gs_call[gs_arg++] = "-dQUIET";
 	if (ps->pagemedia) {
+		printf("using fixed media\n");
 		gs_call[gs_arg++] = "-dFIXEDMEDIA";
 		gs_call[gs_arg++] = ps->GetPaperSwitch();
 	}		
@@ -90,7 +92,7 @@ long gsloop(void* psview) {
 	else
 		gs_call[gs_arg++] = PAGE_FILE;
 	displayComplete=false;
-  code = gsdll_init(gsdll_call, NULL, gs_arg, gs_call); 
+  code = gsdll_init(gsdll_call,NULL, gs_arg, gs_call); 
   if (code==0) {
   	if (displayComplete) gsdll_exit();
   	else {
@@ -101,7 +103,22 @@ long gsloop(void* psview) {
     	gsdll_exit();
   	}}
 	release_sem(painter->shutdown_sem); // signal that interpreter has shut down
+	return 0; // no errors
 };     
+
+bool writePS( FILE *in, FILE *out, long begin, unsigned int len){
+	int rr;
+	char *buffer = (char *) malloc(BUFSIZ);
+	fseek(in, begin, SEEK_SET);
+	while (len>BUFSIZ) {
+		rr = fread(buffer, sizeof(char), BUFSIZ, in);
+		fwrite(buffer, sizeof(char), rr, out); 
+		len -=rr;};
+	rr = fread(buffer, sizeof(char), len, in);
+	fwrite(buffer, sizeof(char), rr, out); 
+	fflush(out);
+	return true;
+}    
 
 BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir) 
   :BView(frame, name , B_FOLLOW_ALL_SIDES, B_WILL_DRAW)
@@ -109,7 +126,7 @@ BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir)
 	gs_thread=0;
 	buf = (char *)malloc(BUFSIZ);
 	xdpi=75.0;
-	ydpi=75.0;
+	ydpi=75.0; 
   painter=this;
   bdev=0;
 	startup_sem = create_sem(1,"gs_startup_protector");
@@ -125,8 +142,23 @@ BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir)
 	acquire_sem(shutdown_sem);
 	acquire_sem(painter_sem);
 	SetViewColor(BeBackgroundGrey);
+	console=new BPSConsole(BRect(20,40,400,300),"GS Console");
+	console->Show();
+	console->Hide();
+}
+ 	
+void BPSWidget::showConsole() {	
+	console->Show();
+} 
+
+void BPSWidget::toggleConsole() {
+	console->toggle();
 }
 
+void BPSWidget::hideConsole() {
+ 	console->Hide();
+ } 
+ 
 BPSWidget::~BPSWidget()
 {
 	quitInterpreter();
@@ -134,18 +166,26 @@ BPSWidget::~BPSWidget()
 	delete_sem(shutdown_sem);
 	delete_sem(keepup_sem);
 	delete_sem(painter_sem);
+	console->Lock();
+	console->Quit();
 }
 
+
+void BPSWidget::printOnConsole(const char* text) {
+	console->addText(text);
+	}
+	
 void BPSWidget::TargetedByScrollView(BScrollView *viewer) {
 	scrollView=viewer;};
 	
 void BPSWidget::SetPaperSize(float width, float height) {
+	printf("dim %f, %f\n",width,height);
   BScrollBar *hbar = scrollView->ScrollBar(B_HORIZONTAL);
   BScrollBar *vbar = scrollView->ScrollBar(B_VERTICAL);
   int scrollWidth, scrollHeight;
   if (Window()->LockWithTimeout(100000)==B_OK) {
-  	scrollWidth = width-Bounds().Width()-1;
-  	scrollHeight= height-Bounds().Height()-1;
+  	scrollWidth = (int) (width- Bounds().Width()-1);
+  	scrollHeight= (int) (height- Bounds().Height()-1);
   	if (scrollWidth<0) scrollWidth=0;
   	if (scrollHeight<0) scrollHeight=0;
   	hbar->SetRange(0,scrollWidth);
@@ -188,18 +228,9 @@ bool BPSWidget::isInterpreterRunning() {
 	else return true; };
 
 bool BPSWidget::sendPS( FILE *fp, long begin, unsigned int len, bool close ){
-	int rr;
-	char *buffer = (char *) malloc(BUFSIZ);
-	fseek(fp, begin, SEEK_SET);
-	while (len>BUFSIZ) {
-		rr = fread(buffer, sizeof(char), BUFSIZ, fp);
-		fwrite(buffer, sizeof(char), rr, out); 
-		len -=rr;};
-	rr = fread(buffer, sizeof(char), len, fp);
-	fwrite(buffer, sizeof(char), rr, out); 
-	fflush(out);
+  bool writeOk=writePS(fp,out,begin,len);
 	if (close) fclose(out);
-  return true;
+  return writeOk;
 }    
 
 void BPSWidget::startInterpreter(){

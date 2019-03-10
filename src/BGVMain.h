@@ -15,8 +15,13 @@
 #define signature "application/x-vnd.raquet-bghostview"
 
 class BGVApplication : public BApplication {
+private:
+	BGhostview *startup;
 public:
-	BGVApplication(char* filename);
+	BGVApplication();
+	virtual void ArgvReceived(int32 argc, char **argv);
+	virtual void MessageReceived(BMessage *message);
+	virtual void RefsReceived(BMessage *message);
 };
 
 

@@ -1,0 +1,10 @@
+xres -o BGhostview_ppc.rsrc  -a bits:660:fileopen icons/fileopen.xpm BGVEmpty.rsrc 
+xres -o BGhostview_ppc.rsrc  -a bits:661:firstpage icons/firstpage.xpm BGhostview_ppc.rsrc
+xres -o BGhostview_ppc.rsrc  -a bits:662:lastpage icons/lastpage.xpm BGhostview_ppc.rsrc
+xres -o BGhostview_ppc.rsrc  -a bits:663:next icons/next.xpm BGhostview_ppc.rsrc
+xres -o BGhostview_ppc.rsrc  -a bits:664:nextpage icons/nextpage.xpm BGhostview_ppc.rsrc
+xres -o BGhostview_ppc.rsrc  -a bits:665:prevpage icons/prevpage.xpm BGhostview_ppc.rsrc
+xres -o BGhostview_ppc.rsrc  -a bits:666:printpage icons/printpage.xpm BGhostview_ppc.rsrc
+xres -o BGhostview_ppc.rsrc  -a bits:667:reload icons/reload.xpm BGhostview_ppc.rsrc
+xres -o BGhostview_ppc.rsrc  -a bits:668:zoomin icons/zoomin.xpm BGhostview_ppc.rsrc
+xres -o BGhostview_ppc.rsrc  -a bits:669:zoomout icons/zoomout.xpm BGhostview_ppc.rsrc

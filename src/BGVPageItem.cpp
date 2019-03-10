@@ -21,25 +21,30 @@ BGVPageItem::BGVPageItem(struct page *ref) {
 	};
 	
 void BGVPageItem::DrawItem(BView *owner, BRect frame, bool complete) {
-	int height = frame.bottom-frame.top;
-	if (showing) owner->SetHighColor(BeBackgroundGrey);
-	else owner->SetHighColor(White);
+	owner->SetHighColor(tint_color(ui_color(B_PANEL_BACKGROUND_COLOR),showing ? B_DARKEN_1_TINT : B_LIGHTEN_2_TINT));
+	owner->SetLowColor(owner->HighColor());
 	owner->FillRect(frame);
+	owner->SetHighColor(tint_color(ui_color(B_PANEL_BACKGROUND_COLOR),showing? B_DARKEN_2_TINT: B_LIGHTEN_MAX_TINT));
+	owner->StrokeLine(frame.LeftTop(),frame.RightTop());
+	owner->SetHighColor(tint_color(ui_color(B_PANEL_BACKGROUND_COLOR),showing ? B_LIGHTEN_1_TINT: B_DARKEN_3_TINT));
+	owner->StrokeLine(frame.LeftBottom(),frame.RightBottom());
+	int height = (int) (frame.bottom-frame.top);
 	owner->SetHighColor(Black);
 	BPoint points[5];
-	points[0]=BPoint(frame.left+3,frame.top+2);
-	points[1]=BPoint(frame.left+height-5,frame.top+2);
-	points[2]=BPoint(frame.left+height-5,frame.top+4);
-	points[3]=BPoint(frame.left+height-3,frame.top+4);
-	points[4]=BPoint(frame.left+height-3,frame.bottom-2);
-	points[5]=BPoint(frame.left+3,frame.bottom-2);
+	int shift = ( showing ? 1 : 0);
+	points[0]=BPoint(frame.left+3+shift,frame.top+2+shift);
+	points[1]=BPoint(frame.left+height-5+shift,frame.top+2+shift);
+	points[2]=BPoint(frame.left+height-5+shift,frame.top+4+shift);
+	points[3]=BPoint(frame.left+height-3+shift,frame.top+4+shift);
+	points[4]=BPoint(frame.left+height-3+shift,frame.bottom-2+shift);
+	points[5]=BPoint(frame.left+3+shift,frame.bottom-2+shift);
 	BPolygon *poly = new BPolygon(points,6);
 	if (IsSelected())
 		owner->FillPolygon(poly);
 	else
 		owner->StrokePolygon(poly);
 	owner->StrokeLine(points[1],points[3]);
-	owner->MovePenTo(frame.left+1.3*height,frame.bottom-2);
+	owner->MovePenTo(frame.left+2*height+shift,frame.bottom-2+shift);
 	owner->DrawString(referedPage->label);
 	delete poly;
 	};

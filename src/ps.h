@@ -46,7 +46,8 @@ enum {ATEND = -1, NONE = 0, PORTRAIT, LANDSCAPE, ASCEND, DESCEND, SPECIAL};
 #define PSLINELENGTH 257	/* 255 characters + 1 newline + 1 NULL */
 
 struct document {
-    int  epsf;				/* Encapsulated PostScript flag. */
+    int  epsf;				/* EPSF-flag */
+	int pdf;					/* PDF-flag */
     char *title;			/* Title of document. */
     char *date;				/* Creation date. */
     int  pageorder;			/* ASCEND, DESCEND, SPECIAL */
@@ -101,7 +102,8 @@ extern struct documentmedia papersizes[];
 struct document *psscan(
            FILE **fileP, const char *filename, const char *tmpprefix, 
  	  char **filename_dscP, const char *cmd_scan_pdf,
- 	  char **filename_uncP, const char *cmd_uncompress);
+ 	  char **filename_uncP, const char *cmd_uncompress,
+ 	  char **error_name, char **error_details);
 	  
 /* end of patch */
 
@@ -127,3 +129,12 @@ char *pscopyuntil(FILE *from, FILE *to, long begin, long end,
 #else
 char *pscopyuntil();
 #endif
+
+extern void				pscopydoc (
+#if NeedFunctionPrototypes
+    FILE *,
+    FILE *,
+    struct document *,
+    char *
+#endif
+);
