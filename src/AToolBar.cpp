@@ -13,7 +13,7 @@
 
 AToolBar::AToolBar( BRect frame, const char *name ) 
   : BView(frame,name,B_FOLLOW_LEFT_RIGHT|B_FOLLOW_TOP,B_WILL_DRAW) {
-	SetViewColor(BeBackgroundGrey);
+	SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 	rightEdge=2;
 };
 
@@ -45,12 +45,12 @@ void AToolBar::AllAttached() {
 };
 
 void AToolBar::Draw(BRect frame) {
-	SetHighColor(White);
+	SetHighColor(ui_color(B_DOCUMENT_BACKGROUND_COLOR));
 	StrokeLine(BPoint(0,Bounds().bottom-1),BPoint(0,0));
 	StrokeLine(BPoint(0,0),BPoint(rightEdge+1,0));
-	SetHighColor(BeLightShadow);
+	SetHighColor(ui_color(B_SHINE_COLOR));
 	StrokeLine(BPoint(1,Bounds().bottom-1),BPoint(rightEdge+2,Bounds().bottom-1));
 	StrokeLine(BPoint(rightEdge+2,Bounds().bottom-1),BPoint(rightEdge+2,0));
-	SetHighColor(BeShadow);
+	SetHighColor(ui_color(B_SHADOW_COLOR));
 	StrokeLine(BPoint(0,Bounds().bottom),BPoint(Bounds().right,Bounds().bottom));
 };

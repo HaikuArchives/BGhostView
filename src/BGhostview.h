@@ -45,7 +45,7 @@ public:
 					char* printerVariable,
 					int pgStart, int pgEnd );
 				
-	void printToFile( char* fname, bool all);
+	void printToFile(const char* fname, bool all);
 				
 	char* printToPrinter( char* printerName, 
 				char* spoolerCommand, char* printerVariable,

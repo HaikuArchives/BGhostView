@@ -59,18 +59,18 @@ void AToolBarIcon::SetValue(int32 value) {
 void AToolBarIcon::Draw(BRect frame) {
 		rgb_color BeShadow=tint_color(ui_color(B_PANEL_BACKGROUND_COLOR), B_DISABLED_LABEL_TINT);
 	if (selectable && IsEnabled()) {
-		if (!control) SetHighColor(White);
+		if (!control) SetHighColor(ui_color(B_DOCUMENT_BACKGROUND_COLOR));
 		else SetHighColor(BeShadow);
 		StrokeLine(BPoint(0,Bounds().bottom),BPoint(0,0));
 		StrokeLine(BPoint(0,0),BPoint(Bounds().right,0));
 		if (!control) SetHighColor(BeShadow);
-		else SetHighColor(White);
+		else SetHighColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 		StrokeLine(BPoint(1,Bounds().bottom),BPoint(Bounds().right,Bounds().bottom));
 		StrokeLine(BPoint(Bounds().right,Bounds().bottom-1),BPoint(Bounds().right,0));}
 	if (IsEnabled()) SetDrawingMode(B_OP_OVER);
 	else SetDrawingMode(B_OP_BLEND);
 	DrawBitmap(icon, BPoint(1,1));
 	if (!IsEnabled()) {
-		SetHighColor(BeBackgroundGrey);
+		SetHighColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 		FillRect(BRect(0,0,Bounds().Width(),Bounds().Height()));};
 };

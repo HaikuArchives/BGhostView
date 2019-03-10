@@ -141,7 +141,7 @@ BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir)
 	acquire_sem(keepup_sem);
 	acquire_sem(shutdown_sem);
 	acquire_sem(painter_sem);
-	SetViewColor(BeBackgroundGrey);
+	SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 	console=new BPSConsole(BRect(20,40,400,300),"GS Console");
 	console->Show();
 	console->Hide();

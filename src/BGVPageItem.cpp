@@ -13,7 +13,6 @@
 *****************************************************************************/
 
 #include "BGVPageItem.h"
-#include <Colors.h>
 
 BGVPageItem::BGVPageItem(struct page *ref) {
 	referedPage=ref;
@@ -29,7 +28,7 @@ void BGVPageItem::DrawItem(BView *owner, BRect frame, bool complete) {
 	owner->SetHighColor(tint_color(ui_color(B_PANEL_BACKGROUND_COLOR),showing ? B_LIGHTEN_1_TINT: B_DARKEN_3_TINT));
 	owner->StrokeLine(frame.LeftBottom(),frame.RightBottom());
 	int height = (int) (frame.bottom-frame.top);
-	owner->SetHighColor(Black);
+	owner->SetHighColor(ui_color(B_PANEL_TEXT_COLOR));
 	BPoint points[5];
 	int shift = ( showing ? 1 : 0);
 	points[0]=BPoint(frame.left+3+shift,frame.top+2+shift);

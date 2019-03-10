@@ -66,7 +66,7 @@ BGhostview::BGhostview( BRect frame, const char *name )
   page = new BPSWidget(BRect(width+5+B_V_SCROLL_BAR_WIDTH,4,mainView->Bounds().Width()-B_H_SCROLL_BAR_HEIGHT,mainView->Bounds().Height()-B_V_SCROLL_BAR_WIDTH),"PSView", tempDir);
   scrollView =new BScrollView("ScrollPage",page, B_FOLLOW_ALL, B_WILL_DRAW, true, true);
   mainView->AddChild(scrollView);
-  mainView->SetViewColor(BeBackgroundGrey);  
+  mainView->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));  
   marklist->SetSelectionMessage(new BMessage(BGV_SELECT_PAGE));
   marklist->SetInvocationMessage(new BMessage(BGV_INVOKE_PAGE));
   AddChild(mainView);
@@ -165,7 +165,7 @@ void BGhostview::MessageReceived(BMessage *message) {
     		BPath path;
     		entry.GetPath(&path);
     		path.Append(fname);
-    		printToFile(path.Path(),message->what==BGV_SAVE_ALL_REFS);
+    		printToFile(path.Path(), message->what==BGV_SAVE_ALL_REFS);
   	}}
   }; 
   	break;
@@ -751,7 +751,7 @@ char* BGhostview::printToPrinter( char* printerName, char* spoolerCommand,
 }
 
 
-void BGhostview::printToFile(char *destFile, bool all) {
+void BGhostview::printToFile(const char *destFile, bool all) {
 	FILE *out;
 	if (toc_text) {
 		int32 max=marklist->CountItems();
@@ -851,7 +851,7 @@ void	BGhostview::setup()
 		char *filename_uncP = 0;
 		char *error_name=0;
 		char *error_details=0;
-		const char cmd_scan_pdf[512];
+		char cmd_scan_pdf[512];
 		strcpy(cmd_scan_pdf, tempDir);
 		strcat(cmd_scan_pdf,"/Ghostscript/bin/gs -dNODISPLAY -dQUIET -sPDFname=\"%s\" -sDSCname=\"%s\" pdf2dsc.ps -c quit");
 		const char *cmd_uncompress = "gzip -d -c %s > %s";

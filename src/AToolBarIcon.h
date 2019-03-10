@@ -2,7 +2,6 @@
 #define ATOOLBAR_ICON_H
 
 #include <Be.h>
-#include <Colors.h>
 
 class AToolBarIcon : public BButton {
 public:

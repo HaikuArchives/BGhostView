@@ -10,7 +10,6 @@
 #include <sys/wait.h>
 
 #include <fcntl.h>
-#include <Colors.h>
 
 #include "BPSConsole.h"
 
