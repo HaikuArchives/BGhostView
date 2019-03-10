@@ -468,7 +468,8 @@ void BGhostview::writeSettings() {
 	set.SetData("Recent4",lastOpened->ItemAt(4), B_PATH_NAME_LENGTH);
 	set.SetData("Zoom",&magstep, sizeof(int));
 	set.SetData("Pagemedia",&pagemedia, sizeof(int));
-	set.SetData("Bounds",&Frame(),sizeof(BRect));
+	BRect frame;
+	set.SetData("Bounds",&frame,sizeof(BRect));
 	set.Save();
 };
 
@@ -631,7 +632,8 @@ void BGhostview::openSaveAllPanel()
 	if (savePanel==NULL) {
 		savePanel=new BFilePanel(B_SAVE_PANEL,NULL,NULL,0,false);
 		}
-	savePanel->SetMessage(&BMessage(BGV_SAVE_ALL_REFS));
+	BMessage message(BGV_SAVE_ALL_REFS);
+	savePanel->SetMessage(&message);
 	savePanel->Show();
 }
 
@@ -640,7 +642,8 @@ void BGhostview::openSaveMarkedPanel()
 	if (savePanel==NULL) {
 		savePanel=new BFilePanel(B_SAVE_PANEL,NULL,NULL,0,false);
 		}
-	savePanel->SetMessage(&BMessage(BGV_SAVE_MARKED_REFS));
+	BMessage message(BGV_SAVE_MARKED_REFS);
+	savePanel->SetMessage(&message);
 	savePanel->Show();
 }
 
