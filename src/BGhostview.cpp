@@ -324,30 +324,28 @@ BView *BGhostview::createMenubar(BRect frame)
 BView* BGhostview::createToolbar(BRect frame)
 {
 	AToolBar *toolBar=new AToolBar(frame,"BGV_Toolbar");
-	if (tempDir!=NULL) {
-		icons[0] = BTranslationUtils::GetBitmap("fileopen");
-		icons[1] = BTranslationUtils::GetBitmap("reload");
-		icons[2]  = BTranslationUtils::GetBitmap("printpage");
-		icons[3]  = BTranslationUtils::GetBitmap("zoomin");
-		icons[4]  = BTranslationUtils::GetBitmap("zoomout");
-		icons[5]  = BTranslationUtils::GetBitmap("firstpage");
-		icons[6]  = BTranslationUtils::GetBitmap("prevpage");
-		icons[7]  = BTranslationUtils::GetBitmap("next");
-		icons[8]  = BTranslationUtils::GetBitmap("nextpage");
-		icons[9]  = BTranslationUtils::GetBitmap("lastpage");
-		if (icons[0] && icons[1] && icons[2] && icons[3] && icons[4] && icons[5] && icons[6] && icons[7] && icons[8] && icons[9]) {
-			toolBar->AddIcon(icons[0] ,"fileopen", new BMessage(BGV_OLD_FILE));
-			toolBar->AddIcon(icons[1] ,"reload",new BMessage(BGV_REDISPLAY),false);
-			toolBar->AddIcon(icons[2] ,"printpage",new BMessage(BGV_PRINT_ALL),false);
-			toolBar->AddIcon(icons[3] ,"zoomin",new BMessage(BGV_ZOOMIN),false);
-			toolBar->AddIcon(icons[4] ,"zoomout",new BMessage(BGV_ZOOMOUT),false);
-			toolBar->AddIcon(icons[5] ,"firstpage",new BMessage(BGV_GOTO_START),false);
-			toolBar->AddIcon(icons[6] ,"prevpage",new BMessage(BGV_PREV_PAGE),false);
-			toolBar->AddIcon(icons[7] ,"page",new BMessage(BGV_READ_DOWN),false);
-			toolBar->AddIcon(icons[8] ,"nextpage",new BMessage(BGV_NEXT_PAGE),false);
-			toolBar->AddIcon(icons[9] ,"lastpage",new BMessage(BGV_GOTO_END),false);};
-	}
-	else {
+	icons[0] = BTranslationUtils::GetBitmap("fileopen");
+	icons[1] = BTranslationUtils::GetBitmap("reload");
+	icons[2] = BTranslationUtils::GetBitmap("printpage");
+	icons[3] = BTranslationUtils::GetBitmap("zoomin");
+	icons[4] = BTranslationUtils::GetBitmap("zoomout");
+	icons[5] = BTranslationUtils::GetBitmap("firstpage");
+	icons[6] = BTranslationUtils::GetBitmap("prevpage");
+	icons[7] = BTranslationUtils::GetBitmap("next");
+	icons[8] = BTranslationUtils::GetBitmap("nextpage");
+	icons[9] = BTranslationUtils::GetBitmap("lastpage");
+	if (icons[0] && icons[1] && icons[2] && icons[3] && icons[4] && icons[5] && icons[6] && icons[7] && icons[8] && icons[9]) {
+		toolBar->AddIcon(icons[0] ,"fileopen", new BMessage(BGV_OLD_FILE));
+		toolBar->AddIcon(icons[1] ,"reload",new BMessage(BGV_REDISPLAY),false);
+		toolBar->AddIcon(icons[2] ,"printpage",new BMessage(BGV_PRINT_ALL),false);
+		toolBar->AddIcon(icons[3] ,"zoomin",new BMessage(BGV_ZOOMIN),false);
+		toolBar->AddIcon(icons[4] ,"zoomout",new BMessage(BGV_ZOOMOUT),false);
+		toolBar->AddIcon(icons[5] ,"firstpage",new BMessage(BGV_GOTO_START),false);
+		toolBar->AddIcon(icons[6] ,"prevpage",new BMessage(BGV_PREV_PAGE),false);
+		toolBar->AddIcon(icons[7] ,"page",new BMessage(BGV_READ_DOWN),false);
+		toolBar->AddIcon(icons[8] ,"nextpage",new BMessage(BGV_NEXT_PAGE),false);
+		toolBar->AddIcon(icons[9] ,"lastpage",new BMessage(BGV_GOTO_END),false);
+	} else {
 		BAlert *d = new BAlert("Error","Could not locate icons.\nMake sure XPMTranslator is installed.","Ok");
 		d->Go();
 	}
