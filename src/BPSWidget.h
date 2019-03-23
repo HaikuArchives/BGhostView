@@ -27,6 +27,7 @@ public:
 	BPSWidget(BRect frame, const char* name, const char *tempDir);
 	~BPSWidget();
 	void Draw(BRect frame);
+	void FrameResized(float, float);
 	void TargetedByScrollView(BScrollView *v);
 	void SetPaperSize(float width, float height);
 	char *GetPaperSwitch();

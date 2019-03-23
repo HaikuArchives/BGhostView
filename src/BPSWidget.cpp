@@ -302,7 +302,7 @@ bool writePS( FILE *in, FILE *out, long begin, unsigned int len){
 }    
 
 BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir) 
-  :BView(frame, name , B_FOLLOW_ALL_SIDES, B_WILL_DRAW)
+  :BView(frame, name , B_FOLLOW_ALL_SIDES, B_WILL_DRAW | B_FRAME_EVENTS)
 {
 	gs_thread=0;
 	buf = (char *)malloc(BUFSIZ);
@@ -360,25 +360,31 @@ void BPSWidget::TargetedByScrollView(BScrollView *viewer)
 {
 	scrollView=viewer;
 }
-	
-void BPSWidget::SetPaperSize(float width, float height)
+
+void BPSWidget::FrameResized(float viewWidth, float viewHeight)
 {
-  BScrollBar *hbar = scrollView->ScrollBar(B_HORIZONTAL);
-  BScrollBar *vbar = scrollView->ScrollBar(B_VERTICAL);
-  int scrollWidth, scrollHeight;
-  if (Window()->LockWithTimeout(100000)==B_OK) {
-  	scrollWidth = (int) (width- Bounds().Width()-1);
-  	scrollHeight= (int) (height- Bounds().Height()-1);
+	int scrollWidth, scrollHeight;
+	BScrollBar *hbar = scrollView->ScrollBar(B_HORIZONTAL);
+	BScrollBar *vbar = scrollView->ScrollBar(B_VERTICAL);
+  	scrollWidth = (int) (width - viewWidth);
+  	scrollHeight= (int) (height - viewHeight);
   	if (scrollWidth<0) scrollWidth=0;
   	if (scrollHeight<0) scrollHeight=0;
   	hbar->SetRange(0,scrollWidth);
   	vbar->SetRange(0,scrollHeight);
   	hbar->SetSteps(20,100);
   	vbar->SetSteps(20,100);
-  	hbar->Invalidate();
-  	vbar->Invalidate();
-  	Invalidate();
-  	Window()->Unlock();};
+	hbar->SetProportion(viewWidth / width);
+	vbar->SetProportion(viewHeight / height);
+}
+	
+void BPSWidget::SetPaperSize(float width, float height)
+{
+	if (Window()->LockWithTimeout(100000)==B_OK) {
+		FrameResized(Bounds().Width() - 1, Bounds().Height() - 1);
+		Invalidate();
+		Window()->Unlock();
+	}
 }
 
 
