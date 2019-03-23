@@ -30,9 +30,9 @@ bool BPSConsole::QuitRequested() {
 	return false;
 };
 
-void BPSConsole::addText(const char* text) {
+void BPSConsole::addText(const char* text, int len) {
 	Lock();
-	output->Insert(output->TextLength(), text, strlen(text));
+	output->Insert(output->TextLength(), text, len);
 	Unlock();
 	}
 

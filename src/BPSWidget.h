@@ -39,7 +39,7 @@ public:
 	void showConsole(); 
 	void hideConsole();
 	void toggleConsole();
-	void printOnConsole(const char *text);
+	void printOnConsole(const char *text, int len);
 	void quitInterpreter();
 	bool isInterpreterRunning();
 	FILE* out;

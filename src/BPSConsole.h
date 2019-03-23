@@ -8,7 +8,7 @@ public:
 	BPSConsole(BRect frame, const char *name);
 	virtual bool QuitRequested();
 	void toggle();
-	void addText(const char* text);
+	void addText(const char* text, int len);
 private:
 	BTextView *output;
 };

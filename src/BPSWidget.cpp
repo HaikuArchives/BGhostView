@@ -21,65 +21,218 @@
 #include <unistd.h>
 
 extern "C" { 
-void gsdll_draw(unsigned char *device, BView *view, BRect dest, BRect src); 
-int gsdll_exit();
-int gsdll_execute_cont(char *buf, int len);
-int gsdll_execute_begin();
-int gsdll_execute_end();
-int gsdll_init( int fct(int i,char* c,unsigned long ul), int what, int argc, char** argv);
-int gsdll_lock_device(unsigned char *dev, int whatever);
-int gsdll_unlock_device(unsigned char *dev, int whatever);
+
+struct display_callback {
+    /* Size of this structure */
+    /* Used for checking if we have been handed a valid structure */
+    int size;
+
+    /* Major version of this structure  */
+    /* The major version number will change if this structure changes. */
+    int version_major;
+
+    /* Minor version of this structure */
+    /* The minor version number will change if new features are added
+     * without changes to this structure.  For example, a new color
+     * format.
+     */
+    int version_minor;
+
+    /* New device has been opened */
+    /* This is the first event from this device. */
+    int (*display_open)(void *handle, void *device);
+
+    /* Device is about to be closed. */
+    /* Device will not be closed until this function returns. */
+    int (*display_preclose)(void *handle, void *device);
+
+    /* Device has been closed. */
+    /* This is the last event from this device. */
+    int (*display_close)(void *handle, void *device);
+
+    /* Device is about to be resized. */
+    /* Resize will only occur if this function returns 0. */
+    /* raster is byte count of a row. */
+    int (*display_presize)(void *handle, void *device,
+        int width, int height, int raster, unsigned int format);
+
+    /* Device has been resized. */
+    /* New pointer to raster returned in pimage */
+    int (*display_size)(void *handle, void *device, int width, int height,
+        int raster, unsigned int format, unsigned char *pimage);
+
+    /* flushpage */
+    int (*display_sync)(void *handle, void *device);
+
+    /* showpage */
+    /* If you want to pause on showpage, then don't return immediately */
+    int (*display_page)(void *handle, void *device, int copies, int flush);
+
+    /* Notify the caller whenever a portion of the raster is updated. */
+    /* This can be used for cooperative multitasking or for
+     * progressive update of the display.
+     * This function pointer may be set to NULL if not required.
+     */
+    int (*display_update)(void *handle, void *device, int x, int y,
+        int w, int h);
+
+    /* Allocate memory for bitmap */
+    /* This is provided in case you need to create memory in a special
+     * way, e.g. shared.  If this is NULL, the Ghostscript memory device
+     * allocates the bitmap. This will only called to allocate the
+     * image buffer. The first row will be placed at the address
+     * returned by display_memalloc.
+     */
+    void *(*display_memalloc)(void *handle, void *device, unsigned long size);
+
+    /* Free memory for bitmap */
+    /* If this is NULL, the Ghostscript memory device will free the bitmap */
+    int (*display_memfree)(void *handle, void *device, void *mem);
+
+    /* Added in V2 */
+    /* When using separation color space (DISPLAY_COLORS_SEPARATION),
+     * give a mapping for one separation component.
+     * This is called for each new component found.
+     * It may be called multiple times for each component.
+     * It may be called at any time between display_size
+     * and display_close.
+     * The client uses this to map from the separations to CMYK
+     * and hence to RGB for display.
+     * GS must only use this callback if version_major >= 2.
+     * The unsigned short c,m,y,k values are 65535 = 1.0.
+     * This function pointer may be set to NULL if not required.
+     */
+#if 0
+    int (*display_separation)(void *handle, void *device,
+        int component, const char *component_name,
+        unsigned short c, unsigned short m,
+        unsigned short y, unsigned short k);
+#endif
+};
+
+int gsapi_new_instance(void **pinstance, void *caller_handle);
+void gsapi_delete_instance(void *instance);
+int gsapi_set_stdio (void *instance, int(*stdin_fn)(void *caller_handle, char *buf, int len), int(*stdout_fn)(void *caller_handle, const char *str, int len), int(*stderr_fn)(void *caller_handle, const char *str, int len));
+int gsapi_exit(void* instance);
+int gsapi_execute_cont(char *buf, int len);
+int gsapi_execute_begin();
+int gsapi_execute_end();
+int gsapi_init_with_args(void* instance, int argc, const char** argv);
+int gsapi_set_display_callback (void *instance, display_callback *callback);
 } 
 
 
 char PAGE_FILE[B_FILE_NAME_LENGTH];
 bool displayComplete;
 float width,height;
+BBitmap* gBitmap;
 
 BPSWidget *painter;
-unsigned char *bdev = NULL; 
-int gsdll_call(int message, char *str, unsigned long count) { 
-    switch (message) { 
-    case 1:
-    		strcpy(str,"\n");
-  			painter->SetPaperSize(width,height);
-    		release_sem(painter->painter_sem); // signal that interpreter is ready to paint
-				acquire_sem(painter->keepup_sem); // wait for signal to quit
-				acquire_sem(painter->painter_sem); // interpreter should not paint during shutdown
-				displayComplete=true;
-        return strlen(str);
-				break;
-    case 2: 	
-	    if (!displayComplete) painter->printOnConsole(str);
-				return count;
-				break;
-    case 3: 
-        bdev = (unsigned char *) str; 
-				break;
-    case 4:
-				break;
-    case 5: 
-				break;
-    case 6: 
-        width=(float)(count & 0xffff);
-        height=(float)((count>>16) & 0xffff);
-    	  break;
-    case 7: 
-				return 0; break;
-    default: 
-        break; 
-    } 
-    return 0; 
-} 
+static void *bdev = NULL; 
+
+int gsapi_display_open(void *handle, void *device)
+{
+	return 0;
+}
+
+int gsapi_display_preclose(void *handle, void *device)
+{
+	bdev = 0;
+	return 0;
+}
+
+int gsapi_display_close(void *handle, void *device)
+{
+	return 0;
+}
+
+int gsapi_display_presize(void *handle, void *device,
+        int w, int h, int r, unsigned int f)
+{
+	acquire_sem(painter->painter_sem); // lock our painter stuff until "sync"
+	width = w;
+	height = h;
+	bdev = device;
+	return 0;
+}
+
+int gsapi_display_size(void* handle, void* d, int w, int h, int r, unsigned int f,
+	unsigned char* i)
+{
+	return 0;
+}
+
+int gsapi_display_sync(void* h, void* d)
+{
+	return 0;
+}
+
+int gsapi_display_page(void *handle, void *device, int copies, int flush)
+{
+	painter->SetPaperSize(width,height);
+		// Also invalidates the window to trigger redraw
+	displayComplete=true;
+	release_sem(painter->painter_sem); // now it's ok for painter to draw
+
+	// Wait and keep the bitmap in memory
+	acquire_sem(painter->keepup_sem);
+	return 0;
+}
+
+
+void* gsapi_memalloc(void *handle, void *device, unsigned long size)
+{
+	gBitmap = new BBitmap(BRect(0, 0, width - 1, height - 1), B_RGB32);
+	return gBitmap->Bits();
+}
+
+int gsapi_memfree(void *handle, void *device, void *mem)
+{
+	delete gBitmap;
+	gBitmap = NULL;
+	return 0;
+}
+
+
+int gsapi_stdin(void *caller_handle, char *buf, int len)
+{
+	strcpy(buf,"\n");
+	return 1;
+}
+
+
+int gsapi_stdout(void *caller_handle, const char *str, int len)
+{
+	fprintf(stderr, "\x1b[33m%*.*s\x1b[0m", len, len, str);
+	painter->printOnConsole(str, len);
+	return len;
+}
+
+
+int gsapi_stderr(void *caller_handle, const char *str, int len)
+{
+	fprintf(stderr, "\x1b[32m%*.*s\x1b[0m", len, len, str);
+	painter->printOnConsole(str, len);
+	return len;
+}
+
+
+display_callback cb;
+void* instance;
 
 long gsloop(void* psview) {
   BPSWidget *ps = (BPSWidget *) psview;
 	int code; 
 	int gs_arg;
-	char *gs_call[128];
+	const char *gs_call[128];
 	gs_arg=0;
 	gs_call[gs_arg++] = "gs";
 	gs_call[gs_arg++] = "-dQUIET";
+	gs_call[gs_arg++] = "-sDEVICE=display";
+	gs_call[gs_arg++] = "-dDisplayFormat=2180";
+	gs_call[gs_arg++] = "-dDisplayHandle=0";
+	gs_call[gs_arg++] = "-dTextAlphaBits=4";
+	gs_call[gs_arg++] = "-dGraphicsAlphaBits=4";
 	if (ps->pagemedia) {
 		printf("using fixed media\n");
 		gs_call[gs_arg++] = "-dFIXEDMEDIA";
@@ -92,19 +245,46 @@ long gsloop(void* psview) {
 	else
 		gs_call[gs_arg++] = PAGE_FILE;
 	displayComplete=false;
-  code = gsdll_init(gsdll_call,NULL, gs_arg, gs_call); 
-  if (code==0) {
-  	if (displayComplete) gsdll_exit();
-  	else {
-   		painter->SetPaperSize(width,height);
-    	release_sem(painter->painter_sem);
+
+	cb.size = sizeof(display_callback);
+	cb.version_major = 1;
+	cb.version_minor = 0;
+	cb.display_open = gsapi_display_open;
+	cb.display_preclose = gsapi_display_preclose;
+	cb.display_close = gsapi_display_close;
+	cb.display_presize = gsapi_display_presize;
+	cb.display_size = gsapi_display_size;
+	cb.display_sync = gsapi_display_sync;
+	cb.display_page = gsapi_display_page;
+	cb.display_memalloc = gsapi_memalloc;
+	cb.display_memfree = gsapi_memfree;
+
+	code = gsapi_new_instance(&instance, NULL);
+	if (code != 0)
+		fprintf(stderr, "Fail to create instance: %d\n", code);
+	gsapi_set_stdio(instance, gsapi_stdin, gsapi_stdout, gsapi_stderr);
+
+	code = gsapi_set_display_callback(instance, &cb);
+	if (code != 0)
+		fprintf(stderr, "Fail to set display callback: %d\n", code);
+
+	code = gsapi_init_with_args(instance, gs_arg, gs_call); 
+	if (code==0) {
+		if (displayComplete)
+			gsapi_exit(instance);
+		else {
+			painter->SetPaperSize(width,height);
 			acquire_sem(painter->keepup_sem);
-			acquire_sem(painter->painter_sem);
-    	gsdll_exit();
-  	}}
+			gsapi_exit(instance);
+		}
+	} else {
+		fprintf(stderr, "Fail to initialize ghostscript: %d\n", code);
+	}
 	release_sem(painter->shutdown_sem); // signal that interpreter has shut down
+	gsapi_delete_instance(instance);
 	return 0; // no errors
-};     
+}
+
 
 bool writePS( FILE *in, FILE *out, long begin, unsigned int len){
 	int rr;
@@ -113,7 +293,8 @@ bool writePS( FILE *in, FILE *out, long begin, unsigned int len){
 	while (len>BUFSIZ) {
 		rr = fread(buffer, sizeof(char), BUFSIZ, in);
 		fwrite(buffer, sizeof(char), rr, out); 
-		len -=rr;};
+		len -=rr;
+	}
 	rr = fread(buffer, sizeof(char), len, in);
 	fwrite(buffer, sizeof(char), rr, out); 
 	fflush(out);
@@ -127,8 +308,8 @@ BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir)
 	buf = (char *)malloc(BUFSIZ);
 	xdpi=75.0;
 	ydpi=75.0; 
-  painter=this;
-  bdev=0;
+	painter=this;
+	bdev=0;
 	startup_sem = create_sem(1,"gs_startup_protector");
 	shutdown_sem = create_sem(1,"gs_shutdown_protector");
 	painter_sem = create_sem(1,"gs_paintlock");
@@ -137,14 +318,13 @@ BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir)
 		strcpy(PAGE_FILE,"/boot/home/tmp/bgv.tmp");	
 	else 
 		sprintf(PAGE_FILE,"%s/%s",tempDir,"bgv.tmp");
-  out = fopen(PAGE_FILE,"w");
+	out = fopen(PAGE_FILE,"w");
 	acquire_sem(keepup_sem);
 	acquire_sem(shutdown_sem);
-	acquire_sem(painter_sem);
 	SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 	console=new BPSConsole(BRect(20,40,400,300),"GS Console");
-	console->Show();
 	console->Hide();
+	console->Show();
 }
  	
 void BPSWidget::showConsole() {	
@@ -171,15 +351,18 @@ BPSWidget::~BPSWidget()
 }
 
 
-void BPSWidget::printOnConsole(const char* text) {
-	console->addText(text);
-	}
+void BPSWidget::printOnConsole(const char* text, int len)
+{
+	console->addText(text, len);
+}
+
+void BPSWidget::TargetedByScrollView(BScrollView *viewer)
+{
+	scrollView=viewer;
+}
 	
-void BPSWidget::TargetedByScrollView(BScrollView *viewer) {
-	scrollView=viewer;};
-	
-void BPSWidget::SetPaperSize(float width, float height) {
-	printf("dim %f, %f\n",width,height);
+void BPSWidget::SetPaperSize(float width, float height)
+{
   BScrollBar *hbar = scrollView->ScrollBar(B_HORIZONTAL);
   BScrollBar *vbar = scrollView->ScrollBar(B_VERTICAL);
   int scrollWidth, scrollHeight;
@@ -196,31 +379,39 @@ void BPSWidget::SetPaperSize(float width, float height) {
   	vbar->Invalidate();
   	Invalidate();
   	Window()->Unlock();};
-  };
+}
 
-void BPSWidget::Draw(BRect area) { 
+
+void BPSWidget::Draw(BRect area) {
   if(bdev) {
   	if (acquire_sem_etc(painter_sem,1,B_TIMEOUT,0)==B_NO_ERROR) {
   		// draw only if interpreter is up and running, block shutdown while drawing
-    	gsdll_lock_device(bdev, 1); 
-    	gsdll_draw(bdev, this, area, area); 
-    	gsdll_lock_device(bdev, 0);
-	  	release_sem(painter_sem);}; 
-  };
-} 
+		DrawBitmap(gBitmap);
+	  	release_sem(painter_sem);
+    }
+  }
+}
 
-char *BPSWidget::GetPaperSwitch() {
+
+char *BPSWidget::GetPaperSwitch()
+{
 	if (pagemedia) {
 		int len=strlen(pagemedia);
 		char *lcmedia = (char *)malloc(len+1);
 		for (int i=0; i<=len; i++) lcmedia[i] = tolower(pagemedia[i]);
-		sprintf(pswitch,"-sPAPERSIZE=%s",lcmedia);};
-  return pswitch; };
+		sprintf(pswitch,"-sPAPERSIZE=%s",lcmedia);
+	}
+	return pswitch;
+}
 
-char *BPSWidget::GetResolutionSwitch() {
+
+char *BPSWidget::GetResolutionSwitch()
+{
 	sprintf(rswitch,"-r%fx%f",xdpi,ydpi);
-  return rswitch; };
-  
+	return rswitch;
+}
+
+
 bool BPSWidget::isInterpreterRunning() { 
   if (acquire_sem_etc(startup_sem,1,B_TIMEOUT,0)==B_NO_ERROR) {
 		release_sem(startup_sem);
