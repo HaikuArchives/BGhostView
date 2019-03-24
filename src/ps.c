@@ -269,78 +269,78 @@ psscan(FILE **fileP, const char *filename, const char *tmpprefix,
     char *next_char;		/* 1st char after text returned by gettext() */
     char *cp;
     struct documentmedia *dmp;
-    
-/* Jake Hamby patch */
-/* Following code added */
 
-if (*error_name==0) {
-	*error_name = malloc(BUFSIZ);
-	(*error_name)[0]=0;
-  *error_details=malloc(BUFSIZ);
-}
-if (cmd_uncompress) {
-	char b[2];
-	if (!(fread(b, sizeof(char),2, *fileP) == 2)
-	|| b[0] != '\037' || (b[1] != '\235' && b[1] != '\213')) {
-		rewind(*fileP);
-		cmd_uncompress=NULL;
+	/* Jake Hamby patch */
+	/* Following code added */
+
+	if (*error_name==0) {
+		*error_name = malloc(BUFSIZ);
+		(*error_name)[0]=0;
+		*error_details=malloc(BUFSIZ);
 	}
-}
-if (cmd_uncompress) {	
-  struct document *retval = NULL;
-	FILE *tmpfile = (FILE*)NULL;
-	char *filename_unc;
-	char cmd[BUFSIZ];
-	/*char s[BUFSIZ];*/
-	filename_unc = file_getTmpFilename(tmpprefix);
-	sprintf(cmd,cmd_uncompress,filename,filename_unc);
-	if (system(cmd) || file_fileIsNotUseful(filename_unc)) {
-		unc_exec_failed:
-		sprintf(*error_name,"Uncompressing failed");
-  	sprintf(*error_details, "Uncompressing failed.\nuncompress command:%s\n",cmd);
-		if (tmpfile) fclose(tmpfile);
-		unlink(filename_unc);
-		unc_ok:
-		free(filename_unc);
-		return(retval);
+	if (cmd_uncompress) {
+		char b[2];
+		if (!(fread(b, sizeof(char),2, *fileP) == 2)
+				|| b[0] != '\037' || (b[1] != '\235' && b[1] != '\213')) {
+			rewind(*fileP);
+			cmd_uncompress=NULL;
+		}
 	}
-	tmpfile = fopen(filename_unc, "r");
-	if (!tmpfile) goto unc_exec_failed;
-	fclose(*fileP);
-	*fileP = tmpfile;
-	retval = psscan(fileP,filename_unc,tmpprefix,filename_dscP,cmd_scan_pdf,NULL,NULL,error_name, error_details);
-	*filename_uncP = strdup(filename_unc);
-	goto unc_ok;
-}
-file = *fileP;
+	if (cmd_uncompress) {	
+		struct document *retval = NULL;
+		FILE *tmpfile = (FILE*)NULL;
+		char *filename_unc;
+		char cmd[BUFSIZ];
+		/*char s[BUFSIZ];*/
+		filename_unc = file_getTmpFilename(tmpprefix);
+		sprintf(cmd,cmd_uncompress,filename,filename_unc);
+		if (system(cmd) || file_fileIsNotUseful(filename_unc)) {
+unc_exec_failed:
+			sprintf(*error_name,"Uncompressing failed");
+			sprintf(*error_details, "Uncompressing failed.\nuncompress command:%s\n",cmd);
+			if (tmpfile) fclose(tmpfile);
+			unlink(filename_unc);
+unc_ok:
+			free(filename_unc);
+			return(retval);
+		}
+		tmpfile = fopen(filename_unc, "r");
+		if (!tmpfile) goto unc_exec_failed;
+		fclose(*fileP);
+		*fileP = tmpfile;
+		retval = psscan(fileP,filename_unc,tmpprefix,filename_dscP,cmd_scan_pdf,NULL,NULL,error_name, error_details);
+		*filename_uncP = strdup(filename_unc);
+		goto unc_ok;
+	}
+	file = *fileP;
 
-/*end of patch */
+	/*end of patch */
 
-    rewind(file);
+	rewind(file);
     if (readline(line, sizeof line, file, &position, &line_len) == NULL) {
-	sprintf(*error_name, "No document");
-	sprintf(*error_details, "No document.\nThe requested file does not contain any data.");
-	return(NULL);
+		sprintf(*error_name, "No document");
+		sprintf(*error_details, "No document.\nThe requested file does not contain any data.");
+		return(NULL);
     }
 
     /* Header comments */
 
-if (iscomment(line,"%!PS-Adobe-")) {
-	doc = (struct document *) malloc(sizeof(struct document));
-	if (doc == NULL) {
-	    fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
-	    exit(-1);
-	}
-	memset(doc, 0, sizeof(struct document));
+	if (iscomment(line,"%!PS-Adobe-")) {
+		doc = (struct document *) malloc(sizeof(struct document));
+		if (doc == NULL) {
+			fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
+			exit(-1);
+		}
+		memset(doc, 0, sizeof(struct document));
 
-/* Jake Hamby patch 18/3/98 */
+		/* Jake Hamby patch 18/3/98 */
 
-	sscanf(line, "%*s %s", text);
-	doc->epsf = iscomment(text, "EPSF"); /* Hamby - This line changed */
-	doc->pdf=0;
-	doc->beginheader = position;
-	section_len = line_len;
-/* Start of added code section */
+		sscanf(line, "%*s %s", text);
+		doc->epsf = iscomment(text, "EPSF"); /* Hamby - This line changed */
+		doc->pdf=0;
+		doc->beginheader = position;
+		section_len = line_len;
+		/* Start of added code section */
 	} 
 	else if (iscomment(line,"%PDF-") && cmd_scan_pdf) {
 		struct document *retval = NULL;
@@ -368,293 +368,292 @@ if (iscomment(line,"%!PS-Adobe-")) {
 		retval = psscan(fileP,filename_dsc,tmpprefix,filename_dscP,cmd_scan_pdf,NULL,NULL,error_name, error_details);
 		if (!retval) {
 			sprintf(*error_details,"Parsing PDF-file failed.\nScanning of generate DSC failed:\n%s.",filename_dsc);
-		goto scan_failed;
+			goto scan_failed;
+		}
+		*filename_dscP = strdup(filename_dsc);
+		retval->pdf=1;
+		goto scan_ok;
+		/* end of added code section */
+		/* end of patch */
+	} else {
+		// Unknown format - but assume single-page-document
+		return(NULL);
 	}
-	*filename_dscP = strdup(filename_dsc);
-	retval->pdf=1;
-	goto scan_ok;
-/* end of added code section */
-/* end of patch */
-} 
-else {
-	// Unknown format - but assume single-page-document
-	return(NULL);
-    }
 
     preread = 0;
     while (preread || readline(line, sizeof line, file, &position, &line_len)) {
-	if (!preread) section_len += line_len;
-	preread = 0;
-	if (line[0] != '%' ||
-	    iscomment(line+1, "%EndComments") ||
-	    line[1] == ' ' || line[1] == '\t' || line[1] == '\n' ||
-	    !isprint(line[1])) {
-	    break;
-	} else if (line[1] != '%') {
-	    /* Do nothing */
-	} else if (doc->title == NULL && iscomment(line+2, "Title:")) {
-	    doc->title = gettextline(line+length("%%Title:"));
-	} else if (doc->date == NULL && iscomment(line+2, "CreationDate:")) {
-	    doc->date = gettextline(line+length("%%CreationDate:"));
-	} else if (bb_set == NONE && iscomment(line+2, "BoundingBox:")) {
-	    sscanf(line+length("%%BoundingBox:"), "%s", text);
-	    if (strcmp(text, "(atend)") == 0) {
-		bb_set = ATEND;
-	    } else {
-		if (sscanf(line+length("%%BoundingBox:"), "%d %d %d %d",
-			   &(doc->boundingbox[LLX]),
-			   &(doc->boundingbox[LLY]),
-			   &(doc->boundingbox[URX]),
-			   &(doc->boundingbox[URY])) == 4)
-		    bb_set = 1;
-		else {
-		    float fllx, flly, furx, fury;
-		    if (sscanf(line+length("%%BoundingBox:"), "%f %f %f %f",
-			       &fllx, &flly, &furx, &fury) == 4) {
-			bb_set = 1;
-			doc->boundingbox[LLX] = fllx;
-			doc->boundingbox[LLY] = flly;
-			doc->boundingbox[URX] = furx;
-			doc->boundingbox[URY] = fury;
-			if (fllx < doc->boundingbox[LLX])
-			    doc->boundingbox[LLX]--;
-			if (flly < doc->boundingbox[LLY])
-			    doc->boundingbox[LLY]--;
-			if (furx > doc->boundingbox[URX])
-			    doc->boundingbox[URX]++;
-			if (fury > doc->boundingbox[URY])
-			    doc->boundingbox[URY]++;
-		    }
-		}
-	    }
-	} else if (orientation_set == NONE &&
-		   iscomment(line+2, "Orientation:")) {
-	    sscanf(line+length("%%Orientation:"), "%s", text);
-	    if (strcmp(text, "(atend)") == 0) {
-		orientation_set = ATEND;
-	    } else if (strcmp(text, "Portrait") == 0) {
-		doc->orientation = PORTRAIT;
-		orientation_set = 1;
-	    } else if (strcmp(text, "Landscape") == 0) {
-		doc->orientation = LANDSCAPE;
-		orientation_set = 1;
-	    }
-	} else if (page_order_set == NONE && iscomment(line+2, "PageOrder:")) {
-	    sscanf(line+length("%%PageOrder:"), "%s", text);
-	    if (strcmp(text, "(atend)") == 0) {
-		page_order_set = ATEND;
-	    } else if (strcmp(text, "Ascend") == 0) {
-		doc->pageorder = ASCEND;
-		page_order_set = 1;
-	    } else if (strcmp(text, "Descend") == 0) {
-		doc->pageorder = DESCEND;
-		page_order_set = 1;
-	    } else if (strcmp(text, "Special") == 0) {
-		doc->pageorder = SPECIAL;
-		page_order_set = 1;
-	    }
-	} else if (pages_set == NONE && iscomment(line+2, "Pages:")) {
-	    sscanf(line+length("%%Pages:"), "%s", text);
-	    if (strcmp(text, "(atend)") == 0) {
-		pages_set = ATEND;
-	    } else {
-		switch (sscanf(line+length("%%Pages:"), "%d %d",
-			       &maxpages, &i)) {
-		    case 2:
-			if (page_order_set == NONE) {
-			    if (i == -1) {
-				doc->pageorder = DESCEND;
-				page_order_set = 1;
-			    } else if (i == 0) {
-				doc->pageorder = SPECIAL;
-				page_order_set = 1;
-			    } else if (i == 1) {
+		if (!preread) section_len += line_len;
+		preread = 0;
+		if (line[0] != '%' ||
+				iscomment(line+1, "%EndComments") ||
+				line[1] == ' ' || line[1] == '\t' || line[1] == '\n' ||
+				!isprint(line[1])) {
+			break;
+		} else if (line[1] != '%') {
+			/* Do nothing */
+		} else if (doc->title == NULL && iscomment(line+2, "Title:")) {
+			doc->title = gettextline(line+length("%%Title:"));
+		} else if (doc->date == NULL && iscomment(line+2, "CreationDate:")) {
+			doc->date = gettextline(line+length("%%CreationDate:"));
+		} else if (bb_set == NONE && iscomment(line+2, "BoundingBox:")) {
+			sscanf(line+length("%%BoundingBox:"), "%s", text);
+			if (strcmp(text, "(atend)") == 0) {
+				bb_set = ATEND;
+			} else {
+				if (sscanf(line+length("%%BoundingBox:"), "%d %d %d %d",
+							&(doc->boundingbox[LLX]),
+							&(doc->boundingbox[LLY]),
+							&(doc->boundingbox[URX]),
+							&(doc->boundingbox[URY])) == 4)
+					bb_set = 1;
+				else {
+					float fllx, flly, furx, fury;
+					if (sscanf(line+length("%%BoundingBox:"), "%f %f %f %f",
+								&fllx, &flly, &furx, &fury) == 4) {
+						bb_set = 1;
+						doc->boundingbox[LLX] = fllx;
+						doc->boundingbox[LLY] = flly;
+						doc->boundingbox[URX] = furx;
+						doc->boundingbox[URY] = fury;
+						if (fllx < doc->boundingbox[LLX])
+							doc->boundingbox[LLX]--;
+						if (flly < doc->boundingbox[LLY])
+							doc->boundingbox[LLY]--;
+						if (furx > doc->boundingbox[URX])
+							doc->boundingbox[URX]++;
+						if (fury > doc->boundingbox[URY])
+							doc->boundingbox[URY]++;
+					}
+				}
+			}
+		} else if (orientation_set == NONE &&
+				iscomment(line+2, "Orientation:")) {
+			sscanf(line+length("%%Orientation:"), "%s", text);
+			if (strcmp(text, "(atend)") == 0) {
+				orientation_set = ATEND;
+			} else if (strcmp(text, "Portrait") == 0) {
+				doc->orientation = PORTRAIT;
+				orientation_set = 1;
+			} else if (strcmp(text, "Landscape") == 0) {
+				doc->orientation = LANDSCAPE;
+				orientation_set = 1;
+			}
+		} else if (page_order_set == NONE && iscomment(line+2, "PageOrder:")) {
+			sscanf(line+length("%%PageOrder:"), "%s", text);
+			if (strcmp(text, "(atend)") == 0) {
+				page_order_set = ATEND;
+			} else if (strcmp(text, "Ascend") == 0) {
 				doc->pageorder = ASCEND;
 				page_order_set = 1;
-			    }
+			} else if (strcmp(text, "Descend") == 0) {
+				doc->pageorder = DESCEND;
+				page_order_set = 1;
+			} else if (strcmp(text, "Special") == 0) {
+				doc->pageorder = SPECIAL;
+				page_order_set = 1;
 			}
-		    case 1:
-			if (maxpages > 0) {
-			    doc->pages = (struct page *) calloc(maxpages,
-							   sizeof(struct page));
-			    if (doc->pages == NULL) {
-				fprintf(stderr,
-				    "Fatal Error: Dynamic memory exhausted.\n");
+		} else if (pages_set == NONE && iscomment(line+2, "Pages:")) {
+			sscanf(line+length("%%Pages:"), "%s", text);
+			if (strcmp(text, "(atend)") == 0) {
+				pages_set = ATEND;
+			} else {
+				switch (sscanf(line+length("%%Pages:"), "%d %d",
+							&maxpages, &i)) {
+					case 2:
+						if (page_order_set == NONE) {
+							if (i == -1) {
+								doc->pageorder = DESCEND;
+								page_order_set = 1;
+							} else if (i == 0) {
+								doc->pageorder = SPECIAL;
+								page_order_set = 1;
+							} else if (i == 1) {
+								doc->pageorder = ASCEND;
+								page_order_set = 1;
+							}
+						}
+					case 1:
+						if (maxpages > 0) {
+							doc->pages = (struct page *) calloc(maxpages,
+									sizeof(struct page));
+							if (doc->pages == NULL) {
+								fprintf(stderr,
+										"Fatal Error: Dynamic memory exhausted.\n");
+								exit(-1);
+							}
+						}
+				}
+			}
+		} else if (doc->nummedia == NONE &&
+				iscomment(line+2, "DocumentMedia:")) {
+			float w, h;
+			doc->media = (struct documentmedia *)
+				malloc(sizeof (struct documentmedia));
+			if (doc->media == NULL) {
+				fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
 				exit(-1);
-			    }
 			}
-		}
-	    }
-	} else if (doc->nummedia == NONE &&
-		   iscomment(line+2, "DocumentMedia:")) {
-	    float w, h;
-	    doc->media = (struct documentmedia *)
-			 malloc(sizeof (struct documentmedia));
-	    if (doc->media == NULL) {
-		fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
-		exit(-1);
-	    }
-	    doc->media[0].name = gettext(line+length("%%DocumentMedia:"),
-					 &next_char);
-	    if (doc->media[0].name != NULL) {
-		if (sscanf(next_char, "%f %f", &w, &h) == 2) {
-		    doc->media[0].width = w + 0.5;
-		    doc->media[0].height = h + 0.5;
-		}
-		if (doc->media[0].width != 0 && doc->media[0].height != 0)
-		    doc->nummedia = 1;
-		else
-		    free(doc->media[0].name);
-	    }
-	    preread=1;
-	    while (readline(line, sizeof line, file, &position, &line_len) &&
-		   DSCcomment(line) && iscomment(line+2, "+")) {
-		section_len += line_len;
-		doc->media = (struct documentmedia *)
-			     realloc(doc->media,
-				     (doc->nummedia+1)*
-				     sizeof (struct documentmedia));
-		if (doc->media == NULL) {
-		    fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
-		    exit(-1);
-		}
-		doc->media[doc->nummedia].name = gettext(line+length("%%+"),
-							 &next_char);
-		if (doc->media[doc->nummedia].name != NULL) {
-		    if (sscanf(next_char, "%f %f", &w, &h) == 2) {
-			doc->media[doc->nummedia].width = w + 0.5;
-			doc->media[doc->nummedia].height = h + 0.5;
-		    }
-		    if (doc->media[doc->nummedia].width != 0 &&
-			doc->media[doc->nummedia].height != 0) doc->nummedia++;
-		    else
-			free(doc->media[doc->nummedia].name);
-		}
-	    }
-	    section_len += line_len;
-	    if (doc->nummedia != 0) doc->default_page_media = doc->media;
-	} else if (doc->nummedia == NONE &&
-		   iscomment(line+2, "DocumentPaperSizes:")) {
+			doc->media[0].name = gettext(line+length("%%DocumentMedia:"),
+					&next_char);
+			if (doc->media[0].name != NULL) {
+				if (sscanf(next_char, "%f %f", &w, &h) == 2) {
+					doc->media[0].width = w + 0.5;
+					doc->media[0].height = h + 0.5;
+				}
+				if (doc->media[0].width != 0 && doc->media[0].height != 0)
+					doc->nummedia = 1;
+				else
+					free(doc->media[0].name);
+			}
+			preread=1;
+			while (readline(line, sizeof line, file, &position, &line_len) &&
+					DSCcomment(line) && iscomment(line+2, "+")) {
+				section_len += line_len;
+				doc->media = (struct documentmedia *)
+					realloc(doc->media,
+							(doc->nummedia+1)*
+							sizeof (struct documentmedia));
+				if (doc->media == NULL) {
+					fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
+					exit(-1);
+				}
+				doc->media[doc->nummedia].name = gettext(line+length("%%+"),
+						&next_char);
+				if (doc->media[doc->nummedia].name != NULL) {
+					if (sscanf(next_char, "%f %f", &w, &h) == 2) {
+						doc->media[doc->nummedia].width = w + 0.5;
+						doc->media[doc->nummedia].height = h + 0.5;
+					}
+					if (doc->media[doc->nummedia].width != 0 &&
+							doc->media[doc->nummedia].height != 0) doc->nummedia++;
+					else
+						free(doc->media[doc->nummedia].name);
+				}
+			}
+			section_len += line_len;
+			if (doc->nummedia != 0) doc->default_page_media = doc->media;
+		} else if (doc->nummedia == NONE &&
+				iscomment(line+2, "DocumentPaperSizes:")) {
 
-	    doc->media = (struct documentmedia *)
-			 malloc(sizeof (struct documentmedia));
-	    if (doc->media == NULL) {
-		fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
-		exit(-1);
-	    }
-	    doc->media[0].name = gettext(line+length("%%DocumentPaperSizes:"),
-					 &next_char);
-	    if (doc->media[0].name != NULL) {
-		doc->media[0].width = 0;
-		doc->media[0].height = 0;
-		for (dmp=papersizes; dmp->name != NULL; dmp++) {
-		    /* Note: Paper size comment uses down cased paper size
-		     * name.  Case insensitive compares are only used for
-		     * PaperSize comments.
-		     */
-		    if (strcasecmp(doc->media[0].name, dmp->name) == 0) {
-			free(doc->media[0].name);
-			doc->media[0].name =
-				(char *)malloc(strlen(dmp->name)+1);
-			if (doc->media[0].name == NULL) {
-			    fprintf(stderr,
-				    "Fatal Error: Dynamic memory exhausted.\n");
-			    exit(-1);
+			doc->media = (struct documentmedia *)
+				malloc(sizeof (struct documentmedia));
+			if (doc->media == NULL) {
+				fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
+				exit(-1);
 			}
-			strcpy(doc->media[0].name, dmp->name);
-			doc->media[0].width = dmp->width;
-			doc->media[0].height = dmp->height;
-			break;
-		    }
-		}
-		if (doc->media[0].width != 0 && doc->media[0].height != 0)
-		    doc->nummedia = 1;
-		else
-		    free(doc->media[0].name);
-	    }
-	    while ( (cp = gettext(next_char, &next_char)) ) {
-		doc->media = (struct documentmedia *)
-			     realloc(doc->media,
-				     (doc->nummedia+1)*
-				     sizeof (struct documentmedia));
-		if (doc->media == NULL) {
-		    fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
-		    exit(-1);
-		}
-		doc->media[doc->nummedia].name = cp;
-		doc->media[doc->nummedia].width = 0;
-		doc->media[doc->nummedia].height = 0;
-		for (dmp=papersizes; dmp->name != NULL; dmp++) {
-		    /* Note: Paper size comment uses down cased paper size
-		     * name.  Case insensitive compares are only used for
-		     * PaperSize comments.
-		     */
-		    if (strcasecmp(doc->media[doc->nummedia].name,
-			       dmp->name) == 0) {
-			free(doc->media[doc->nummedia].name);
-			doc->media[doc->nummedia].name =
-				(char *)malloc(strlen(dmp->name)+1);
-			if (doc->media[doc->nummedia].name == NULL) {
-			    fprintf(stderr,
-				    "Fatal Error: Dynamic memory exhausted.\n");
-			    exit(-1);
+			doc->media[0].name = gettext(line+length("%%DocumentPaperSizes:"),
+					&next_char);
+			if (doc->media[0].name != NULL) {
+				doc->media[0].width = 0;
+				doc->media[0].height = 0;
+				for (dmp=papersizes; dmp->name != NULL; dmp++) {
+					/* Note: Paper size comment uses down cased paper size
+					 * name.  Case insensitive compares are only used for
+					 * PaperSize comments.
+					 */
+					if (strcasecmp(doc->media[0].name, dmp->name) == 0) {
+						free(doc->media[0].name);
+						doc->media[0].name =
+							(char *)malloc(strlen(dmp->name)+1);
+						if (doc->media[0].name == NULL) {
+							fprintf(stderr,
+									"Fatal Error: Dynamic memory exhausted.\n");
+							exit(-1);
+						}
+						strcpy(doc->media[0].name, dmp->name);
+						doc->media[0].width = dmp->width;
+						doc->media[0].height = dmp->height;
+						break;
+					}
+				}
+				if (doc->media[0].width != 0 && doc->media[0].height != 0)
+					doc->nummedia = 1;
+				else
+					free(doc->media[0].name);
 			}
-			strcpy(doc->media[doc->nummedia].name, dmp->name);
-			doc->media[doc->nummedia].name = dmp->name;
-			doc->media[doc->nummedia].width = dmp->width;
-			doc->media[doc->nummedia].height = dmp->height;
-			break;
-		    }
-		}
-		if (doc->media[doc->nummedia].width != 0 &&
-		    doc->media[doc->nummedia].height != 0) doc->nummedia++;
-		else
-		    free(doc->media[doc->nummedia].name);
-	    }
-	    preread=1;
-	    while (readline(line, sizeof line, file, &position, &line_len) &&
-		   DSCcomment(line) && iscomment(line+2, "+")) {
-		section_len += line_len;
-		next_char = line + length("%%+");
-		while ( (cp = gettext(next_char, &next_char)) ) {
-		    doc->media = (struct documentmedia *)
-				 realloc(doc->media,
-					 (doc->nummedia+1)*
-					 sizeof (struct documentmedia));
-		    if (doc->media == NULL) {
-			fprintf(stderr,
-				"Fatal Error: Dynamic memory exhausted.\n");
-			exit(-1);
-		    }
-		    doc->media[doc->nummedia].name = cp;
-		    doc->media[doc->nummedia].width = 0;
-		    doc->media[doc->nummedia].height = 0;
-		    for (dmp=papersizes; dmp->name != NULL; dmp++) {
-			/* Note: Paper size comment uses down cased paper size
-			 * name.  Case insensitive compares are only used for
-			 * PaperSize comments.
-			 */
-			if (strcasecmp(doc->media[doc->nummedia].name,
-				   dmp->name) == 0) {
-			    doc->media[doc->nummedia].width = dmp->width;
-			    doc->media[doc->nummedia].height = dmp->height;
-			    break;
+			while ( (cp = gettext(next_char, &next_char)) ) {
+				doc->media = (struct documentmedia *)
+					realloc(doc->media,
+							(doc->nummedia+1)*
+							sizeof (struct documentmedia));
+				if (doc->media == NULL) {
+					fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
+					exit(-1);
+				}
+				doc->media[doc->nummedia].name = cp;
+				doc->media[doc->nummedia].width = 0;
+				doc->media[doc->nummedia].height = 0;
+				for (dmp=papersizes; dmp->name != NULL; dmp++) {
+					/* Note: Paper size comment uses down cased paper size
+					 * name.  Case insensitive compares are only used for
+					 * PaperSize comments.
+					 */
+					if (strcasecmp(doc->media[doc->nummedia].name,
+								dmp->name) == 0) {
+						free(doc->media[doc->nummedia].name);
+						doc->media[doc->nummedia].name =
+							(char *)malloc(strlen(dmp->name)+1);
+						if (doc->media[doc->nummedia].name == NULL) {
+							fprintf(stderr,
+									"Fatal Error: Dynamic memory exhausted.\n");
+							exit(-1);
+						}
+						strcpy(doc->media[doc->nummedia].name, dmp->name);
+						doc->media[doc->nummedia].name = dmp->name;
+						doc->media[doc->nummedia].width = dmp->width;
+						doc->media[doc->nummedia].height = dmp->height;
+						break;
+					}
+				}
+				if (doc->media[doc->nummedia].width != 0 &&
+						doc->media[doc->nummedia].height != 0) doc->nummedia++;
+				else
+					free(doc->media[doc->nummedia].name);
 			}
-		    }
-		    if (doc->media[doc->nummedia].width != 0 &&
-			doc->media[doc->nummedia].height != 0) doc->nummedia++;
-		    else
-			free(doc->media[doc->nummedia].name);
+			preread=1;
+			while (readline(line, sizeof line, file, &position, &line_len) &&
+					DSCcomment(line) && iscomment(line+2, "+")) {
+				section_len += line_len;
+				next_char = line + length("%%+");
+				while ( (cp = gettext(next_char, &next_char)) ) {
+					doc->media = (struct documentmedia *)
+						realloc(doc->media,
+								(doc->nummedia+1)*
+								sizeof (struct documentmedia));
+					if (doc->media == NULL) {
+						fprintf(stderr,
+								"Fatal Error: Dynamic memory exhausted.\n");
+						exit(-1);
+					}
+					doc->media[doc->nummedia].name = cp;
+					doc->media[doc->nummedia].width = 0;
+					doc->media[doc->nummedia].height = 0;
+					for (dmp=papersizes; dmp->name != NULL; dmp++) {
+						/* Note: Paper size comment uses down cased paper size
+						 * name.  Case insensitive compares are only used for
+						 * PaperSize comments.
+						 */
+						if (strcasecmp(doc->media[doc->nummedia].name,
+									dmp->name) == 0) {
+							doc->media[doc->nummedia].width = dmp->width;
+							doc->media[doc->nummedia].height = dmp->height;
+							break;
+						}
+					}
+					if (doc->media[doc->nummedia].width != 0 &&
+							doc->media[doc->nummedia].height != 0) doc->nummedia++;
+					else
+						free(doc->media[doc->nummedia].name);
+				}
+			}
+			section_len += line_len;
+			if (doc->nummedia != 0) doc->default_page_media = doc->media;
 		}
-	    }
-	    section_len += line_len;
-	    if (doc->nummedia != 0) doc->default_page_media = doc->media;
 	}
-    }
 
-    if (DSCcomment(line) && iscomment(line+2, "EndComments")) {
-	readline(line, sizeof line, file, &position, &line_len);
-	section_len += line_len;
+	if (DSCcomment(line) && iscomment(line+2, "EndComments")) {
+		readline(line, sizeof line, file, &position, &line_len);
+		section_len += line_len;
     }
     doc->endheader = position;
     doc->lenheader = section_len - line_len;
@@ -664,490 +663,490 @@ else {
     beginsection = position;
     section_len = line_len;
     while (blank(line) &&
-	   readline(line, sizeof line, file, &position, &line_len)) {
-	section_len += line_len;
+			readline(line, sizeof line, file, &position, &line_len)) {
+		section_len += line_len;
     }
 
     if (doc->epsf && DSCcomment(line) && iscomment(line+2, "BeginPreview")) {
-	doc->beginpreview = beginsection;
-	beginsection = 0;
-	while (readline(line, sizeof line, file, &position, &line_len) &&
-	       !(DSCcomment(line) && iscomment(line+2, "EndPreview"))) {
-	    section_len += line_len;
+		doc->beginpreview = beginsection;
+		beginsection = 0;
+		while (readline(line, sizeof line, file, &position, &line_len) &&
+				!(DSCcomment(line) && iscomment(line+2, "EndPreview"))) {
+			section_len += line_len;
+		}
+		section_len += line_len;
+		readline(line, sizeof line, file, &position, &line_len);
+		section_len += line_len;
+		doc->endpreview = position;
+		doc->lenpreview = section_len - line_len;
 	}
-	section_len += line_len;
-	readline(line, sizeof line, file, &position, &line_len);
-	section_len += line_len;
-	doc->endpreview = position;
-	doc->lenpreview = section_len - line_len;
-    }
 
     /* Page Defaults for Version 3.0 files */
 
     if (beginsection == 0) {
-	beginsection = position;
-	section_len = line_len;
+		beginsection = position;
+		section_len = line_len;
     }
     while (blank(line) &&
-	   readline(line, sizeof line, file, &position, &line_len)) {
-	section_len += line_len;
+			readline(line, sizeof line, file, &position, &line_len)) {
+		section_len += line_len;
     }
 
     if (DSCcomment(line) && iscomment(line+2, "BeginDefaults")) {
-	doc->begindefaults = beginsection;
-	beginsection = 0;
-	while (readline(line, sizeof line, file, &position, &line_len) &&
-	       !(DSCcomment(line) && iscomment(line+2, "EndDefaults"))) {
-	    section_len += line_len;
-	    if (!DSCcomment(line)) {
-		/* Do nothing */
-	    } else if (doc->default_page_orientation == NONE &&
-		iscomment(line+2, "PageOrientation:")) {
-		sscanf(line+length("%%PageOrientation:"), "%s", text);
-		if (strcmp(text, "Portrait") == 0) {
-		    doc->default_page_orientation = PORTRAIT;
-		} else if (strcmp(text, "Landscape") == 0) {
-		    doc->default_page_orientation = LANDSCAPE;
+		doc->begindefaults = beginsection;
+		beginsection = 0;
+		while (readline(line, sizeof line, file, &position, &line_len) &&
+				!(DSCcomment(line) && iscomment(line+2, "EndDefaults"))) {
+			section_len += line_len;
+			if (!DSCcomment(line)) {
+				/* Do nothing */
+			} else if (doc->default_page_orientation == NONE &&
+					iscomment(line+2, "PageOrientation:")) {
+				sscanf(line+length("%%PageOrientation:"), "%s", text);
+				if (strcmp(text, "Portrait") == 0) {
+					doc->default_page_orientation = PORTRAIT;
+				} else if (strcmp(text, "Landscape") == 0) {
+					doc->default_page_orientation = LANDSCAPE;
+				}
+			} else if (page_media_set == NONE &&
+					iscomment(line+2, "PageMedia:")) {
+				cp = gettext(line+length("%%PageMedia:"), NULL);
+				for (dmp = doc->media, i=0; i<doc->nummedia; i++, dmp++) {
+					if (strcmp(cp, dmp->name) == 0) {
+						doc->default_page_media = dmp;
+						page_media_set = 1;
+						break;
+					}
+				}
+				free(cp);
+			} else if (page_bb_set == NONE &&
+					iscomment(line+2, "PageBoundingBox:")) {
+				if (sscanf(line+length("%%PageBoundingBox:"), "%d %d %d %d",
+							&(doc->default_page_boundingbox[LLX]),
+							&(doc->default_page_boundingbox[LLY]),
+							&(doc->default_page_boundingbox[URX]),
+							&(doc->default_page_boundingbox[URY])) == 4)
+					page_bb_set = 1;
+				else {
+					float fllx, flly, furx, fury;
+					if (sscanf(line+length("%%PageBoundingBox:"), "%f %f %f %f",
+								&fllx, &flly, &furx, &fury) == 4) {
+						page_bb_set = 1;
+						doc->default_page_boundingbox[LLX] = fllx;
+						doc->default_page_boundingbox[LLY] = flly;
+						doc->default_page_boundingbox[URX] = furx;
+						doc->default_page_boundingbox[URY] = fury;
+						if (fllx < doc->default_page_boundingbox[LLX])
+							doc->default_page_boundingbox[LLX]--;
+						if (flly < doc->default_page_boundingbox[LLY])
+							doc->default_page_boundingbox[LLY]--;
+						if (furx > doc->default_page_boundingbox[URX])
+							doc->default_page_boundingbox[URX]++;
+						if (fury > doc->default_page_boundingbox[URY])
+							doc->default_page_boundingbox[URY]++;
+					}
+				}
+			}
 		}
-	    } else if (page_media_set == NONE &&
-		       iscomment(line+2, "PageMedia:")) {
-		cp = gettext(line+length("%%PageMedia:"), NULL);
-		for (dmp = doc->media, i=0; i<doc->nummedia; i++, dmp++) {
-		    if (strcmp(cp, dmp->name) == 0) {
-			doc->default_page_media = dmp;
-			page_media_set = 1;
-			break;
-		    }
-		}
-		free(cp);
-	    } else if (page_bb_set == NONE &&
-		       iscomment(line+2, "PageBoundingBox:")) {
-		if (sscanf(line+length("%%PageBoundingBox:"), "%d %d %d %d",
-			   &(doc->default_page_boundingbox[LLX]),
-			   &(doc->default_page_boundingbox[LLY]),
-			   &(doc->default_page_boundingbox[URX]),
-			   &(doc->default_page_boundingbox[URY])) == 4)
-		    page_bb_set = 1;
-		else {
-		    float fllx, flly, furx, fury;
-		    if (sscanf(line+length("%%PageBoundingBox:"), "%f %f %f %f",
-			       &fllx, &flly, &furx, &fury) == 4) {
-			page_bb_set = 1;
-			doc->default_page_boundingbox[LLX] = fllx;
-			doc->default_page_boundingbox[LLY] = flly;
-			doc->default_page_boundingbox[URX] = furx;
-			doc->default_page_boundingbox[URY] = fury;
-			if (fllx < doc->default_page_boundingbox[LLX])
-			    doc->default_page_boundingbox[LLX]--;
-			if (flly < doc->default_page_boundingbox[LLY])
-			    doc->default_page_boundingbox[LLY]--;
-			if (furx > doc->default_page_boundingbox[URX])
-			    doc->default_page_boundingbox[URX]++;
-			if (fury > doc->default_page_boundingbox[URY])
-			    doc->default_page_boundingbox[URY]++;
-		    }
-		}
-	    }
+		section_len += line_len;
+		readline(line, sizeof line, file, &position, &line_len);
+		section_len += line_len;
+		doc->enddefaults = position;
+		doc->lendefaults = section_len - line_len;
 	}
-	section_len += line_len;
-	readline(line, sizeof line, file, &position, &line_len);
-	section_len += line_len;
-	doc->enddefaults = position;
-	doc->lendefaults = section_len - line_len;
-    }
 
-    /* Document Prolog */
+	/* Document Prolog */
 
     if (beginsection == 0) {
-	beginsection = position;
-	section_len = line_len;
+		beginsection = position;
+		section_len = line_len;
     }
     while (blank(line) &&
-	   readline(line, sizeof line, file, &position, &line_len)) {
-	section_len += line_len;
+			readline(line, sizeof line, file, &position, &line_len)) {
+		section_len += line_len;
     }
 
     if (!(DSCcomment(line) &&
-	  (iscomment(line+2, "BeginSetup") ||
-	   iscomment(line+2, "Page:") ||
-	   iscomment(line+2, "Trailer") ||
-	   iscomment(line+2, "EOF")))) {
-	doc->beginprolog = beginsection;
-	beginsection = 0;
-	preread = 1;
+				(iscomment(line+2, "BeginSetup") ||
+				 iscomment(line+2, "Page:") ||
+				 iscomment(line+2, "Trailer") ||
+				 iscomment(line+2, "EOF")))) {
+		doc->beginprolog = beginsection;
+		beginsection = 0;
+		preread = 1;
 
-	while ((preread ||
-		readline(line, sizeof line, file, &position, &line_len)) &&
-	       !(DSCcomment(line) &&
-	         (iscomment(line+2, "EndProlog") ||
-	          iscomment(line+2, "BeginSetup") ||
-	          iscomment(line+2, "Page:") ||
-	          iscomment(line+2, "Trailer") ||
-	          iscomment(line+2, "EOF")))) {
-	    if (!preread) section_len += line_len;
-	    preread = 0;
+		while ((preread ||
+					readline(line, sizeof line, file, &position, &line_len)) &&
+				!(DSCcomment(line) &&
+					(iscomment(line+2, "EndProlog") ||
+					 iscomment(line+2, "BeginSetup") ||
+					 iscomment(line+2, "Page:") ||
+					 iscomment(line+2, "Trailer") ||
+					 iscomment(line+2, "EOF")))) {
+			if (!preread) section_len += line_len;
+			preread = 0;
+		}
+		section_len += line_len;
+		if (DSCcomment(line) && iscomment(line+2, "EndProlog")) {
+			readline(line, sizeof line, file, &position, &line_len);
+			section_len += line_len;
+		}
+		doc->endprolog = position;
+		doc->lenprolog = section_len - line_len;
 	}
-	section_len += line_len;
-	if (DSCcomment(line) && iscomment(line+2, "EndProlog")) {
-	    readline(line, sizeof line, file, &position, &line_len);
-	    section_len += line_len;
-	}
-	doc->endprolog = position;
-	doc->lenprolog = section_len - line_len;
-    }
 
     /* Document Setup,  Page Defaults found here for Version 2 files */
 
     if (beginsection == 0) {
-	beginsection = position;
-	section_len = line_len;
+		beginsection = position;
+		section_len = line_len;
     }
     while (blank(line) &&
-	   readline(line, sizeof line, file, &position, &line_len)) {
-	section_len += line_len;
+			readline(line, sizeof line, file, &position, &line_len)) {
+		section_len += line_len;
     }
 
-    if (!(DSCcomment(line) &&
-	  (iscomment(line+2, "Page:") ||
-	   iscomment(line+2, "Trailer") ||
-	   iscomment(line+2, "EOF")))) {
-	doc->beginsetup = beginsection;
-	beginsection = 0;
-	preread = 1;
-	while ((preread ||
-		readline(line, sizeof line, file, &position, &line_len)) &&
-	       !(DSCcomment(line) &&
-	         (iscomment(line+2, "EndSetup") ||
-	          iscomment(line+2, "Page:") ||
-	          iscomment(line+2, "Trailer") ||
-	          iscomment(line+2, "EOF")))) {
-	    if (!preread) section_len += line_len;
-	    preread = 0;
-	    if (!DSCcomment(line)) {
-		/* Do nothing */
-	    } else if (doc->default_page_orientation == NONE &&
-		iscomment(line+2, "PageOrientation:")) {
-		sscanf(line+length("%%PageOrientation:"), "%s", text);
-		if (strcmp(text, "Portrait") == 0) {
-		    doc->default_page_orientation = PORTRAIT;
-		} else if (strcmp(text, "Landscape") == 0) {
-		    doc->default_page_orientation = LANDSCAPE;
+	if (!(DSCcomment(line) &&
+				(iscomment(line+2, "Page:") ||
+				 iscomment(line+2, "Trailer") ||
+				 iscomment(line+2, "EOF")))) {
+		doc->beginsetup = beginsection;
+		beginsection = 0;
+		preread = 1;
+		while ((preread ||
+					readline(line, sizeof line, file, &position, &line_len)) &&
+				!(DSCcomment(line) &&
+					(iscomment(line+2, "EndSetup") ||
+					 iscomment(line+2, "Page:") ||
+					 iscomment(line+2, "Trailer") ||
+					 iscomment(line+2, "EOF")))) {
+			if (!preread) section_len += line_len;
+			preread = 0;
+			if (!DSCcomment(line)) {
+				/* Do nothing */
+			} else if (doc->default_page_orientation == NONE &&
+					iscomment(line+2, "PageOrientation:")) {
+				sscanf(line+length("%%PageOrientation:"), "%s", text);
+				if (strcmp(text, "Portrait") == 0) {
+					doc->default_page_orientation = PORTRAIT;
+				} else if (strcmp(text, "Landscape") == 0) {
+					doc->default_page_orientation = LANDSCAPE;
+				}
+			} else if (page_media_set == NONE &&
+					iscomment(line+2, "PaperSize:")) {
+				cp = gettext(line+length("%%PaperSize:"), NULL);
+				for (dmp = doc->media, i=0; i<doc->nummedia; i++, dmp++) {
+					/* Note: Paper size comment uses down cased paper size
+					 * name.  Case insensitive compares are only used for
+					 * PaperSize comments.
+					 */
+					if (strcasecmp(cp, dmp->name) == 0) {
+						doc->default_page_media = dmp;
+						page_media_set = 1;
+						break;
+					}
+				}
+				free(cp);
+			} else if (page_bb_set == NONE &&
+					iscomment(line+2, "PageBoundingBox:")) {
+				if (sscanf(line+length("%%PageBoundingBox:"), "%d %d %d %d",
+							&(doc->default_page_boundingbox[LLX]),
+							&(doc->default_page_boundingbox[LLY]),
+							&(doc->default_page_boundingbox[URX]),
+							&(doc->default_page_boundingbox[URY])) == 4)
+					page_bb_set = 1;
+				else {
+					float fllx, flly, furx, fury;
+					if (sscanf(line+length("%%PageBoundingBox:"), "%f %f %f %f",
+								&fllx, &flly, &furx, &fury) == 4) {
+						page_bb_set = 1;
+						doc->default_page_boundingbox[LLX] = fllx;
+						doc->default_page_boundingbox[LLY] = flly;
+						doc->default_page_boundingbox[URX] = furx;
+						doc->default_page_boundingbox[URY] = fury;
+						if (fllx < doc->default_page_boundingbox[LLX])
+							doc->default_page_boundingbox[LLX]--;
+						if (flly < doc->default_page_boundingbox[LLY])
+							doc->default_page_boundingbox[LLY]--;
+						if (furx > doc->default_page_boundingbox[URX])
+							doc->default_page_boundingbox[URX]++;
+						if (fury > doc->default_page_boundingbox[URY])
+							doc->default_page_boundingbox[URY]++;
+					}
+				}
+			}
 		}
-	    } else if (page_media_set == NONE &&
-		       iscomment(line+2, "PaperSize:")) {
-		cp = gettext(line+length("%%PaperSize:"), NULL);
-		for (dmp = doc->media, i=0; i<doc->nummedia; i++, dmp++) {
-		    /* Note: Paper size comment uses down cased paper size
-		     * name.  Case insensitive compares are only used for
-		     * PaperSize comments.
-		     */
-		    if (strcasecmp(cp, dmp->name) == 0) {
-			doc->default_page_media = dmp;
-			page_media_set = 1;
-			break;
-		    }
+		section_len += line_len;
+		if (DSCcomment(line) && iscomment(line+2, "EndSetup")) {
+			readline(line, sizeof line, file, &position, &line_len);
+			section_len += line_len;
 		}
-		free(cp);
-	    } else if (page_bb_set == NONE &&
-		       iscomment(line+2, "PageBoundingBox:")) {
-		if (sscanf(line+length("%%PageBoundingBox:"), "%d %d %d %d",
-			   &(doc->default_page_boundingbox[LLX]),
-			   &(doc->default_page_boundingbox[LLY]),
-			   &(doc->default_page_boundingbox[URX]),
-			   &(doc->default_page_boundingbox[URY])) == 4)
-		    page_bb_set = 1;
-		else {
-		    float fllx, flly, furx, fury;
-		    if (sscanf(line+length("%%PageBoundingBox:"), "%f %f %f %f",
-			       &fllx, &flly, &furx, &fury) == 4) {
-			page_bb_set = 1;
-			doc->default_page_boundingbox[LLX] = fllx;
-			doc->default_page_boundingbox[LLY] = flly;
-			doc->default_page_boundingbox[URX] = furx;
-			doc->default_page_boundingbox[URY] = fury;
-			if (fllx < doc->default_page_boundingbox[LLX])
-			    doc->default_page_boundingbox[LLX]--;
-			if (flly < doc->default_page_boundingbox[LLY])
-			    doc->default_page_boundingbox[LLY]--;
-			if (furx > doc->default_page_boundingbox[URX])
-			    doc->default_page_boundingbox[URX]++;
-			if (fury > doc->default_page_boundingbox[URY])
-			    doc->default_page_boundingbox[URY]++;
-		    }
-		}
-	    }
+		doc->endsetup = position;
+		doc->lensetup = section_len - line_len;
 	}
-	section_len += line_len;
-	if (DSCcomment(line) && iscomment(line+2, "EndSetup")) {
-	    readline(line, sizeof line, file, &position, &line_len);
-	    section_len += line_len;
-	}
-	doc->endsetup = position;
-	doc->lensetup = section_len - line_len;
-    }
 
     /* Individual Pages */
 
     if (beginsection == 0) {
-	beginsection = position;
-	section_len = line_len;
+		beginsection = position;
+		section_len = line_len;
     }
-    while (blank(line) &&
-	   readline(line, sizeof line, file, &position, &line_len)) {
-	section_len += line_len;
-    }
+	while (blank(line) &&
+			readline(line, sizeof line, file, &position, &line_len)) {
+		section_len += line_len;
+	}
 
 newpage:
-    while (DSCcomment(line) && iscomment(line+2, "Page:")) {
-	if (maxpages == 0) {
-	    maxpages = 1;
-	    doc->pages = (struct page *) calloc(maxpages, sizeof(struct page));
-	    if (doc->pages == NULL) {
-		fprintf(stderr,
-			"Fatal Error: Dynamic memory exhausted.\n");
-		exit(-1);
-	    }
-	}
-	label = gettext(line+length("%%Page:"), &next_char);
-	if (sscanf(next_char, "%d", &thispage) != 1) thispage = 0;
-	if (nextpage == 1) {
-	    ignore = thispage != 1;
-	}
-	if (!ignore && thispage != nextpage) {
-	    free(label);
-	    doc->numpages--;
-	    goto continuepage;
-	}
-	nextpage++;
-	if (doc->numpages == maxpages) {
-	    maxpages++;
-	    doc->pages = (struct page *)
-			 realloc(doc->pages, maxpages*sizeof (struct page));
-	    if (doc->pages == NULL) {
-		fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
-		exit(-1);
-	    }
-	}
-	memset(&(doc->pages[doc->numpages]), 0, sizeof(struct page));
-	page_bb_set = NONE;
-	doc->pages[doc->numpages].label = label;
-	if (beginsection) {
-	    doc->pages[doc->numpages].begin = beginsection;
-	    beginsection = 0;
-	} else {
-	    doc->pages[doc->numpages].begin = position;
-	    section_len = line_len;
-	}
-continuepage:
-	while (readline(line, sizeof line, file, &position, &line_len) &&
-	       !(DSCcomment(line) &&
-	         (iscomment(line+2, "Page:") ||
-	          iscomment(line+2, "Trailer") ||
-	          iscomment(line+2, "EOF")))) {
-	    section_len += line_len;
-	    if (!DSCcomment(line)) {
-		/* Do nothing */
-	    } else if (doc->pages[doc->numpages].orientation == NONE &&
-		iscomment(line+2, "PageOrientation:")) {
-		sscanf(line+length("%%PageOrientation:"), "%s", text);
-		if (strcmp(text, "Portrait") == 0) {
-		    doc->pages[doc->numpages].orientation = PORTRAIT;
-		} else if (strcmp(text, "Landscape") == 0) {
-		    doc->pages[doc->numpages].orientation = LANDSCAPE;
-		}
-	    } else if (doc->pages[doc->numpages].media == NULL &&
-		       iscomment(line+2, "PageMedia:")) {
-		cp = gettext(line+length("%%PageMedia:"), NULL);
-		for (dmp = doc->media, i=0; i<doc->nummedia; i++, dmp++) {
-		    if (strcmp(cp, dmp->name) == 0) {
-			doc->pages[doc->numpages].media = dmp;
-			break;
-		    }
-		}
-		free(cp);
-	    } else if (doc->pages[doc->numpages].media == NULL &&
-		       iscomment(line+2, "PaperSize:")) {
-		cp = gettext(line+length("%%PaperSize:"), NULL);
-		for (dmp = doc->media, i=0; i<doc->nummedia; i++, dmp++) {
-		    /* Note: Paper size comment uses down cased paper size
-		     * name.  Case insensitive compares are only used for
-		     * PaperSize comments.
-		     */
-		    if (strcasecmp(cp, dmp->name) == 0) {
-			doc->pages[doc->numpages].media = dmp;
-			break;
-		    }
-		}
-		free(cp);
-	    } else if ((page_bb_set == NONE || page_bb_set == ATEND) &&
-		       iscomment(line+2, "PageBoundingBox:")) {
-		sscanf(line+length("%%PageBoundingBox:"), "%s", text);
-		if (strcmp(text, "(atend)") == 0) {
-		    page_bb_set = ATEND;
-		} else {
-		    if (sscanf(line+length("%%PageBoundingBox:"), "%d %d %d %d",
-			    &(doc->pages[doc->numpages].boundingbox[LLX]),
-			    &(doc->pages[doc->numpages].boundingbox[LLY]),
-			    &(doc->pages[doc->numpages].boundingbox[URX]),
-			    &(doc->pages[doc->numpages].boundingbox[URY])) == 4)
-			if (page_bb_set == NONE) page_bb_set = 1;
-		    else {
-			float fllx, flly, furx, fury;
-			if (sscanf(line+length("%%PageBoundingBox:"),
-				   "%f %f %f %f",
-				   &fllx, &flly, &furx, &fury) == 4) {
-			    if (page_bb_set == NONE) page_bb_set = 1;
-			    doc->pages[doc->numpages].boundingbox[LLX] = fllx;
-			    doc->pages[doc->numpages].boundingbox[LLY] = flly;
-			    doc->pages[doc->numpages].boundingbox[URX] = furx;
-			    doc->pages[doc->numpages].boundingbox[URY] = fury;
-			    if (fllx <
-				    doc->pages[doc->numpages].boundingbox[LLX])
-				doc->pages[doc->numpages].boundingbox[LLX]--;
-			    if (flly <
-				    doc->pages[doc->numpages].boundingbox[LLY])
-				doc->pages[doc->numpages].boundingbox[LLY]--;
-			    if (furx >
-				    doc->pages[doc->numpages].boundingbox[URX])
-				doc->pages[doc->numpages].boundingbox[URX]++;
-			    if (fury >
-				    doc->pages[doc->numpages].boundingbox[URY])
-				doc->pages[doc->numpages].boundingbox[URY]++;
+	while (DSCcomment(line) && iscomment(line+2, "Page:")) {
+		if (maxpages == 0) {
+			maxpages = 1;
+			doc->pages = (struct page *) calloc(maxpages, sizeof(struct page));
+			if (doc->pages == NULL) {
+				fprintf(stderr,
+						"Fatal Error: Dynamic memory exhausted.\n");
+				exit(-1);
 			}
-		    }
 		}
-	    }
+		label = gettext(line+length("%%Page:"), &next_char);
+		if (sscanf(next_char, "%d", &thispage) != 1) thispage = 0;
+		if (nextpage == 1) {
+			ignore = thispage != 1;
+		}
+		if (!ignore && thispage != nextpage) {
+			free(label);
+			doc->numpages--;
+			goto continuepage;
+		}
+		nextpage++;
+		if (doc->numpages == maxpages) {
+			maxpages++;
+			doc->pages = (struct page *)
+				realloc(doc->pages, maxpages*sizeof (struct page));
+			if (doc->pages == NULL) {
+				fprintf(stderr, "Fatal Error: Dynamic memory exhausted.\n");
+				exit(-1);
+			}
+		}
+		memset(&(doc->pages[doc->numpages]), 0, sizeof(struct page));
+		page_bb_set = NONE;
+		doc->pages[doc->numpages].label = label;
+		if (beginsection) {
+			doc->pages[doc->numpages].begin = beginsection;
+			beginsection = 0;
+		} else {
+			doc->pages[doc->numpages].begin = position;
+			section_len = line_len;
+		}
+continuepage:
+		while (readline(line, sizeof line, file, &position, &line_len) &&
+				!(DSCcomment(line) &&
+					(iscomment(line+2, "Page:") ||
+					 iscomment(line+2, "Trailer") ||
+					 iscomment(line+2, "EOF")))) {
+			section_len += line_len;
+			if (!DSCcomment(line)) {
+				/* Do nothing */
+			} else if (doc->pages[doc->numpages].orientation == NONE &&
+					iscomment(line+2, "PageOrientation:")) {
+				sscanf(line+length("%%PageOrientation:"), "%s", text);
+				if (strcmp(text, "Portrait") == 0) {
+					doc->pages[doc->numpages].orientation = PORTRAIT;
+				} else if (strcmp(text, "Landscape") == 0) {
+					doc->pages[doc->numpages].orientation = LANDSCAPE;
+				}
+			} else if (doc->pages[doc->numpages].media == NULL &&
+		       iscomment(line+2, "PageMedia:")) {
+				cp = gettext(line+length("%%PageMedia:"), NULL);
+				for (dmp = doc->media, i=0; i<doc->nummedia; i++, dmp++) {
+					if (strcmp(cp, dmp->name) == 0) {
+						doc->pages[doc->numpages].media = dmp;
+						break;
+					}
+				}
+				free(cp);
+			} else if (doc->pages[doc->numpages].media == NULL &&
+					iscomment(line+2, "PaperSize:")) {
+				cp = gettext(line+length("%%PaperSize:"), NULL);
+				for (dmp = doc->media, i=0; i<doc->nummedia; i++, dmp++) {
+					/* Note: Paper size comment uses down cased paper size
+					 * name.  Case insensitive compares are only used for
+					 * PaperSize comments.
+					 */
+					if (strcasecmp(cp, dmp->name) == 0) {
+						doc->pages[doc->numpages].media = dmp;
+						break;
+					}
+				}
+				free(cp);
+			} else if ((page_bb_set == NONE || page_bb_set == ATEND) &&
+					iscomment(line+2, "PageBoundingBox:")) {
+				sscanf(line+length("%%PageBoundingBox:"), "%s", text);
+				if (strcmp(text, "(atend)") == 0) {
+					page_bb_set = ATEND;
+				} else {
+					if (sscanf(line+length("%%PageBoundingBox:"), "%d %d %d %d",
+								&(doc->pages[doc->numpages].boundingbox[LLX]),
+								&(doc->pages[doc->numpages].boundingbox[LLY]),
+								&(doc->pages[doc->numpages].boundingbox[URX]),
+								&(doc->pages[doc->numpages].boundingbox[URY])) == 4)
+						if (page_bb_set == NONE) page_bb_set = 1;
+						else {
+							float fllx, flly, furx, fury;
+							if (sscanf(line+length("%%PageBoundingBox:"),
+										"%f %f %f %f",
+										&fllx, &flly, &furx, &fury) == 4) {
+								if (page_bb_set == NONE) page_bb_set = 1;
+								doc->pages[doc->numpages].boundingbox[LLX] = fllx;
+								doc->pages[doc->numpages].boundingbox[LLY] = flly;
+								doc->pages[doc->numpages].boundingbox[URX] = furx;
+								doc->pages[doc->numpages].boundingbox[URY] = fury;
+								if (fllx <
+										doc->pages[doc->numpages].boundingbox[LLX])
+									doc->pages[doc->numpages].boundingbox[LLX]--;
+								if (flly <
+										doc->pages[doc->numpages].boundingbox[LLY])
+									doc->pages[doc->numpages].boundingbox[LLY]--;
+								if (furx >
+										doc->pages[doc->numpages].boundingbox[URX])
+									doc->pages[doc->numpages].boundingbox[URX]++;
+								if (fury >
+										doc->pages[doc->numpages].boundingbox[URY])
+									doc->pages[doc->numpages].boundingbox[URY]++;
+							}
+						}
+				}
+			}
+		}
+		section_len += line_len;
+		doc->pages[doc->numpages].end = position;
+		doc->pages[doc->numpages].len = section_len - line_len;
+		doc->numpages++;
 	}
-	section_len += line_len;
-	doc->pages[doc->numpages].end = position;
-	doc->pages[doc->numpages].len = section_len - line_len;
-	doc->numpages++;
-    }
 
     /* Document Trailer */
 
-    if (beginsection) {
-	doc->begintrailer = beginsection;
-	beginsection = 0;
+	if (beginsection) {
+		doc->begintrailer = beginsection;
+		beginsection = 0;
     } else {
-	doc->begintrailer = position;
-	section_len = line_len;
+		doc->begintrailer = position;
+		section_len = line_len;
     }
 
     preread = 1;
-    while ((preread ||
-	    readline(line, sizeof line, file, &position, &line_len)) &&
-	   !(DSCcomment(line) && iscomment(line+2, "EOF"))) {
-	if (!preread) section_len += line_len;
-	preread = 0;
-	if (!DSCcomment(line)) {
-	    /* Do nothing */
-	} else if (iscomment(line+2, "Page:")) {
-	    free(gettext(line+length("%%Page:"), &next_char));
-	    if (sscanf(next_char, "%d", &thispage) != 1) thispage = 0;
-	    if (!ignore && thispage == nextpage) {
-		if (doc->numpages > 0) {
-		    doc->pages[doc->numpages-1].end = position;
-		    doc->pages[doc->numpages-1].len += section_len - line_len;
-		} else {
-		    if (doc->endsetup) {
-			doc->endsetup = position;
-			doc->endsetup += section_len - line_len;
-		    } else if (doc->endprolog) {
-			doc->endprolog = position;
-			doc->endprolog += section_len - line_len;
-		    }
+	while ((preread ||
+				readline(line, sizeof line, file, &position, &line_len)) &&
+			!(DSCcomment(line) && iscomment(line+2, "EOF"))) {
+		if (!preread) section_len += line_len;
+		preread = 0;
+		if (!DSCcomment(line)) {
+			/* Do nothing */
+		} else if (iscomment(line+2, "Page:")) {
+			free(gettext(line+length("%%Page:"), &next_char));
+			if (sscanf(next_char, "%d", &thispage) != 1) thispage = 0;
+			if (!ignore && thispage == nextpage) {
+				if (doc->numpages > 0) {
+					doc->pages[doc->numpages-1].end = position;
+					doc->pages[doc->numpages-1].len += section_len - line_len;
+				} else {
+					if (doc->endsetup) {
+						doc->endsetup = position;
+						doc->endsetup += section_len - line_len;
+					} else if (doc->endprolog) {
+						doc->endprolog = position;
+						doc->endprolog += section_len - line_len;
+					}
+				}
+				goto newpage;
+			}
+		} else if (bb_set == ATEND && iscomment(line+2, "BoundingBox:")) {
+			if (sscanf(line+length("%%BoundingBox:"), "%d %d %d %d",
+						&(doc->boundingbox[LLX]),
+						&(doc->boundingbox[LLY]),
+						&(doc->boundingbox[URX]),
+						&(doc->boundingbox[URY])) != 4) {
+				float fllx, flly, furx, fury;
+				if (sscanf(line+length("%%BoundingBox:"), "%f %f %f %f",
+							&fllx, &flly, &furx, &fury) == 4) {
+					doc->boundingbox[LLX] = fllx;
+					doc->boundingbox[LLY] = flly;
+					doc->boundingbox[URX] = furx;
+					doc->boundingbox[URY] = fury;
+					if (fllx < doc->boundingbox[LLX])
+						doc->boundingbox[LLX]--;
+					if (flly < doc->boundingbox[LLY])
+						doc->boundingbox[LLY]--;
+					if (furx > doc->boundingbox[URX])
+						doc->boundingbox[URX]++;
+					if (fury > doc->boundingbox[URY])
+						doc->boundingbox[URY]++;
+				}
+			}
+		} else if (orientation_set == ATEND &&
+				iscomment(line+2, "Orientation:")) {
+			sscanf(line+length("%%Orientation:"), "%s", text);
+			if (strcmp(text, "Portrait") == 0) {
+				doc->orientation = PORTRAIT;
+			} else if (strcmp(text, "Landscape") == 0) {
+				doc->orientation = LANDSCAPE;
+			}
+		} else if (page_order_set == ATEND && iscomment(line+2, "PageOrder:")) {
+			sscanf(line+length("%%PageOrder:"), "%s", text);
+			if (strcmp(text, "Ascend") == 0) {
+				doc->pageorder = ASCEND;
+			} else if (strcmp(text, "Descend") == 0) {
+				doc->pageorder = DESCEND;
+			} else if (strcmp(text, "Special") == 0) {
+				doc->pageorder = SPECIAL;
+			}
+		} else if (pages_set == ATEND && iscomment(line+2, "Pages:")) {
+			if (sscanf(line+length("%%Pages:"), "%*u %d", &i) == 1) {
+				if (page_order_set == NONE) {
+					if (i == -1) doc->pageorder = DESCEND;
+					else if (i == 0) doc->pageorder = SPECIAL;
+					else if (i == 1) doc->pageorder = ASCEND;
+				}
+			}
 		}
-		goto newpage;
-	    }
-	} else if (bb_set == ATEND && iscomment(line+2, "BoundingBox:")) {
-	    if (sscanf(line+length("%%BoundingBox:"), "%d %d %d %d",
-		       &(doc->boundingbox[LLX]),
-		       &(doc->boundingbox[LLY]),
-		       &(doc->boundingbox[URX]),
-		       &(doc->boundingbox[URY])) != 4) {
-		float fllx, flly, furx, fury;
-		if (sscanf(line+length("%%BoundingBox:"), "%f %f %f %f",
-			   &fllx, &flly, &furx, &fury) == 4) {
-		    doc->boundingbox[LLX] = fllx;
-		    doc->boundingbox[LLY] = flly;
-		    doc->boundingbox[URX] = furx;
-		    doc->boundingbox[URY] = fury;
-		    if (fllx < doc->boundingbox[LLX])
-			doc->boundingbox[LLX]--;
-		    if (flly < doc->boundingbox[LLY])
-			doc->boundingbox[LLY]--;
-		    if (furx > doc->boundingbox[URX])
-			doc->boundingbox[URX]++;
-		    if (fury > doc->boundingbox[URY])
-			doc->boundingbox[URY]++;
-		}
-	    }
-	} else if (orientation_set == ATEND &&
-		   iscomment(line+2, "Orientation:")) {
-	    sscanf(line+length("%%Orientation:"), "%s", text);
-	    if (strcmp(text, "Portrait") == 0) {
-		doc->orientation = PORTRAIT;
-	    } else if (strcmp(text, "Landscape") == 0) {
-		doc->orientation = LANDSCAPE;
-	    }
-	} else if (page_order_set == ATEND && iscomment(line+2, "PageOrder:")) {
-	    sscanf(line+length("%%PageOrder:"), "%s", text);
-	    if (strcmp(text, "Ascend") == 0) {
-		doc->pageorder = ASCEND;
-	    } else if (strcmp(text, "Descend") == 0) {
-		doc->pageorder = DESCEND;
-	    } else if (strcmp(text, "Special") == 0) {
-		doc->pageorder = SPECIAL;
-	    }
-	} else if (pages_set == ATEND && iscomment(line+2, "Pages:")) {
-	    if (sscanf(line+length("%%Pages:"), "%*u %d", &i) == 1) {
-		if (page_order_set == NONE) {
-		    if (i == -1) doc->pageorder = DESCEND;
-		    else if (i == 0) doc->pageorder = SPECIAL;
-		    else if (i == 1) doc->pageorder = ASCEND;
-		}
-	    }
-	}
     }
-    section_len += line_len;
-    if (DSCcomment(line) && iscomment(line+2, "EOF")) {
-	readline(line, sizeof line, file, &position, &line_len);
 	section_len += line_len;
+	if (DSCcomment(line) && iscomment(line+2, "EOF")) {
+		readline(line, sizeof line, file, &position, &line_len);
+		section_len += line_len;
     }
-    doc->endtrailer = position;
-    doc->lentrailer = section_len - line_len;
+	doc->endtrailer = position;
+	doc->lentrailer = section_len - line_len;
 
 #if 0
     section_len = line_len;
     preread = 1;
     while (preread ||
-	   readline(line, sizeof line, file, &position, &line_len)) {
-	if (!preread) section_len += line_len;
-	preread = 0;
-	if (DSCcomment(line) && iscomment(line+2, "Page:")) {
-	    free(gettext(line+length("%%Page:"), &next_char));
-	    if (sscanf(next_char, "%d", &thispage) != 1) thispage = 0;
-	    if (!ignore && thispage == nextpage) {
-		if (doc->numpages > 0) {
-		    doc->pages[doc->numpages-1].end = position;
-		    doc->pages[doc->numpages-1].len += doc->lentrailer +
-						       section_len - line_len;
-		} else {
-		    if (doc->endsetup) {
-			doc->endsetup = position;
-			doc->endsetup += doc->lentrailer +
-					 section_len - line_len;
-		    } else if (doc->endprolog) {
-			doc->endprolog = position;
-			doc->endprolog += doc->lentrailer +
-					  section_len - line_len;
-		    }
+			readline(line, sizeof line, file, &position, &line_len)) {
+		if (!preread) section_len += line_len;
+		preread = 0;
+		if (DSCcomment(line) && iscomment(line+2, "Page:")) {
+			free(gettext(line+length("%%Page:"), &next_char));
+			if (sscanf(next_char, "%d", &thispage) != 1) thispage = 0;
+			if (!ignore && thispage == nextpage) {
+				if (doc->numpages > 0) {
+					doc->pages[doc->numpages-1].end = position;
+					doc->pages[doc->numpages-1].len += doc->lentrailer +
+						section_len - line_len;
+				} else {
+					if (doc->endsetup) {
+						doc->endsetup = position;
+						doc->endsetup += doc->lentrailer +
+							section_len - line_len;
+					} else if (doc->endprolog) {
+						doc->endprolog = position;
+						doc->endprolog += doc->lentrailer +
+							section_len - line_len;
+					}
+				}
+				goto newpage;
+			}
 		}
-		goto newpage;
-	    }
 	}
-    }
 #endif
     return doc;
 }
