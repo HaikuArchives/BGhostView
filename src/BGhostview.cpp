@@ -45,15 +45,13 @@ BGhostview::BGhostview( BRect frame, const char *name )
 		strcpy(psTmp,"/boot/apps/Ghostscript/");
 		}
 	else {
-	  BEntry entry(&info.ref);
-    BPath path;
-    entry.GetPath(&path);
-    path.GetParent(&path);
+		BPath path;
 		tempDir=new char[B_PATH_NAME_LENGTH];
+		find_directory(B_SYSTEM_TEMP_DIRECTORY, &path);
 		strcpy(tempDir,path.Path());
 		strcpy(psTmp,tempDir);
 		strcat(psTmp,"/");
-		};
+	};
 	BView *menuBar=createMenubar(BRect(0,0,0,0));
   AddChild(menuBar);
 	toolBar = (AToolBar *)createToolbar(BRect(0,menuBar->Bounds().Height()+1,frame.Width(),25));
