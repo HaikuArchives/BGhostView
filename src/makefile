@@ -35,7 +35,7 @@ SRCS = AToolBar.cpp AToolBarIcon.cpp BGVMain.cpp BGVPageItem.cpp BGVDropTarget.c
 
 #	Specify the resource definition files to use. Full or relative paths can be
 #	used.
-RDEFS = BGhostview_x86.rdef
+RDEFS = BGhostview.rdef
 
 #	Specify the resource files to use. Full or relative paths can be used.
 #	Both RDEFS and RSRCS can be utilized in the same Makefile.
