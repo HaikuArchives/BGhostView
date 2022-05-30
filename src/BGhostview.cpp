@@ -466,7 +466,7 @@ void BGhostview::writeSettings() {
 	set.SetData("Recent4",lastOpened->ItemAt(4), B_PATH_NAME_LENGTH);
 	set.SetData("Zoom",&magstep, sizeof(int));
 	set.SetData("Pagemedia",&pagemedia, sizeof(int));
-	BRect frame;
+	BRect frame(Frame());
 	set.SetData("Bounds",&frame,sizeof(BRect));
 	set.Save();
 };
