@@ -44,9 +44,10 @@ public:
 	void quitInterpreter();
 	bool isInterpreterRunning();
 	FILE* out;
-	sem_id shutdown_sem, startup_sem, painter_sem, keepup_sem;
-	
-  char* filename;
+	sem_id shutdown_sem, startup_sem, keepup_sem;
+	BLocker painter_lock;
+
+	char* filename;
 	float xdpi, ydpi;
 	char *pagemedia;
 		

@@ -125,6 +125,7 @@ int gsapi_set_display_callback (void *instance, display_callback *callback);
 char PAGE_FILE[B_FILE_NAME_LENGTH];
 bool displayComplete;
 float width,height;
+void* gDisplayData;
 BBitmap* gBitmap;
 
 BPSWidget *painter;
@@ -171,7 +172,7 @@ int gsapi_display_page(void *handle, void *device, int copies, int flush)
 	painter->SetPaperSize(width,height);
 		// Also invalidates the window to trigger redraw
 	displayComplete=true;
-	release_sem(painter->painter_sem); // now it's ok for painter to draw
+	painter->painter_lock.Unlock(); // now it's ok for painter to draw
 
 	// Wait and keep the bitmap in memory
 	acquire_sem(painter->keepup_sem);
@@ -181,14 +182,16 @@ int gsapi_display_page(void *handle, void *device, int copies, int flush)
 
 void* gsapi_memalloc(void *handle, void *device, unsigned long size)
 {
-	gBitmap = new BBitmap(BRect(0, 0, width - 1, height - 1), B_RGB32);
-	return gBitmap->Bits();
+	area_id area = create_area("gs bitmap", &gDisplayData, B_ANY_ADDRESS, size, B_NO_LOCK, B_READ_AREA | B_WRITE_AREA | B_CLONEABLE_AREA);
+	gBitmap = new BBitmap(area, 0, BRect(0, 0, width - 1, height - 1), 0, B_RGB32);
+	return gDisplayData;
 }
 
 int gsapi_memfree(void *handle, void *device, void *mem)
 {
 	delete gBitmap;
-	gBitmap = NULL;
+	area_id area = area_for(mem);
+	delete_area(area);
 	return 0;
 }
 
@@ -220,10 +223,10 @@ display_callback cb;
 void* instance;
 
 int32 gsloop(void* psview) {
-  BPSWidget *ps = (BPSWidget *) psview;
-	int code; 
+	BPSWidget *ps = (BPSWidget *) psview;
+	int code;
 	int gs_arg;
-	const char *gs_call[128];
+	const char *gs_call[32];
 	gs_arg=0;
 	gs_call[gs_arg++] = "gs";
 	gs_call[gs_arg++] = "-dQUIET";
@@ -239,7 +242,7 @@ int32 gsloop(void* psview) {
 	}		
 	gs_call[gs_arg++] = ps->GetResolutionSwitch();
 	gs_call[gs_arg++] = "-dBATCH";
-	if (ps->filename) 
+	if (ps->filename)
 		gs_call[gs_arg++] = ps->filename;
 	else
 		gs_call[gs_arg++] = PAGE_FILE;
@@ -269,9 +272,9 @@ int32 gsloop(void* psview) {
 
 	code = gsapi_init_with_args(instance, gs_arg, gs_call); 
 	if (code==0) {
-		if (displayComplete)
+		if (displayComplete) {
 			gsapi_exit(instance);
-		else {
+		} else {
 			painter->SetPaperSize(width,height);
 			acquire_sem(painter->keepup_sem);
 			gsapi_exit(instance);
@@ -301,7 +304,8 @@ bool writePS( FILE *in, FILE *out, long begin, unsigned int len){
 }    
 
 BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir) 
-  :BView(frame, name , B_FOLLOW_ALL_SIDES, B_WILL_DRAW | B_FRAME_EVENTS)
+  : BView(frame, name , B_FOLLOW_ALL_SIDES, B_WILL_DRAW | B_FRAME_EVENTS)
+  , painter_lock("painter lock")
 {
 	gs_thread=0;
 	buf = (char *)malloc(BUFSIZ);
@@ -311,7 +315,7 @@ BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir)
 	bdev=0;
 	startup_sem = create_sem(1,"gs_startup_protector");
 	shutdown_sem = create_sem(1,"gs_shutdown_protector");
-	painter_sem = create_sem(0,"gs_paintlock");
+	painter_lock.Lock();
 	keepup_sem = create_sem(1,"gs_keeprunning");
 	if (tempDir==NULL)
 		strcpy(PAGE_FILE,"/boot/home/tmp/bgv.tmp");	
@@ -344,7 +348,6 @@ BPSWidget::~BPSWidget()
 	delete_sem(startup_sem);
 	delete_sem(shutdown_sem);
 	delete_sem(keepup_sem);
-	delete_sem(painter_sem);
 	console->Lock();
 	console->Quit();
 }
@@ -389,7 +392,7 @@ void BPSWidget::SetPaperSize(float width, float height)
 
 void BPSWidget::Draw(BRect area) {
   if(bdev) {
-  	if (acquire_sem_etc(painter_sem,1,B_TIMEOUT,0)==B_NO_ERROR) {
+  	if (painter_lock.LockWithTimeout(0) == B_OK) {
   		// draw only if interpreter is up and running, block shutdown while drawing
 		DrawBitmap(gBitmap);
     }
