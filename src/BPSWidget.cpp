@@ -20,106 +20,12 @@
 #include <ctype.h>
 #include <unistd.h>
 
-extern "C" { 
+extern "C" {
 
-struct display_callback {
-    /* Size of this structure */
-    /* Used for checking if we have been handed a valid structure */
-    int size;
+#include "ghostscript/gdevdsp.h"
+#include "ghostscript/iapi.h"
 
-    /* Major version of this structure  */
-    /* The major version number will change if this structure changes. */
-    int version_major;
-
-    /* Minor version of this structure */
-    /* The minor version number will change if new features are added
-     * without changes to this structure.  For example, a new color
-     * format.
-     */
-    int version_minor;
-
-    /* New device has been opened */
-    /* This is the first event from this device. */
-    int (*display_open)(void *handle, void *device);
-
-    /* Device is about to be closed. */
-    /* Device will not be closed until this function returns. */
-    int (*display_preclose)(void *handle, void *device);
-
-    /* Device has been closed. */
-    /* This is the last event from this device. */
-    int (*display_close)(void *handle, void *device);
-
-    /* Device is about to be resized. */
-    /* Resize will only occur if this function returns 0. */
-    /* raster is byte count of a row. */
-    int (*display_presize)(void *handle, void *device,
-        int width, int height, int raster, unsigned int format);
-
-    /* Device has been resized. */
-    /* New pointer to raster returned in pimage */
-    int (*display_size)(void *handle, void *device, int width, int height,
-        int raster, unsigned int format, unsigned char *pimage);
-
-    /* flushpage */
-    int (*display_sync)(void *handle, void *device);
-
-    /* showpage */
-    /* If you want to pause on showpage, then don't return immediately */
-    int (*display_page)(void *handle, void *device, int copies, int flush);
-
-    /* Notify the caller whenever a portion of the raster is updated. */
-    /* This can be used for cooperative multitasking or for
-     * progressive update of the display.
-     * This function pointer may be set to NULL if not required.
-     */
-    int (*display_update)(void *handle, void *device, int x, int y,
-        int w, int h);
-
-    /* Allocate memory for bitmap */
-    /* This is provided in case you need to create memory in a special
-     * way, e.g. shared.  If this is NULL, the Ghostscript memory device
-     * allocates the bitmap. This will only called to allocate the
-     * image buffer. The first row will be placed at the address
-     * returned by display_memalloc.
-     */
-    void *(*display_memalloc)(void *handle, void *device, unsigned long size);
-
-    /* Free memory for bitmap */
-    /* If this is NULL, the Ghostscript memory device will free the bitmap */
-    int (*display_memfree)(void *handle, void *device, void *mem);
-
-    /* Added in V2 */
-    /* When using separation color space (DISPLAY_COLORS_SEPARATION),
-     * give a mapping for one separation component.
-     * This is called for each new component found.
-     * It may be called multiple times for each component.
-     * It may be called at any time between display_size
-     * and display_close.
-     * The client uses this to map from the separations to CMYK
-     * and hence to RGB for display.
-     * GS must only use this callback if version_major >= 2.
-     * The unsigned short c,m,y,k values are 65535 = 1.0.
-     * This function pointer may be set to NULL if not required.
-     */
-#if 0
-    int (*display_separation)(void *handle, void *device,
-        int component, const char *component_name,
-        unsigned short c, unsigned short m,
-        unsigned short y, unsigned short k);
-#endif
-};
-
-int gsapi_new_instance(void **pinstance, void *caller_handle);
-void gsapi_delete_instance(void *instance);
-int gsapi_set_stdio (void *instance, int(*stdin_fn)(void *caller_handle, char *buf, int len), int(*stdout_fn)(void *caller_handle, const char *str, int len), int(*stderr_fn)(void *caller_handle, const char *str, int len));
-int gsapi_exit(void* instance);
-int gsapi_execute_cont(char *buf, int len);
-int gsapi_execute_begin();
-int gsapi_execute_end();
-int gsapi_init_with_args(void* instance, int argc, const char** argv);
-int gsapi_set_display_callback (void *instance, display_callback *callback);
-} 
+}
 
 
 char PAGE_FILE[B_FILE_NAME_LENGTH];
@@ -249,8 +155,8 @@ int32 gsloop(void* psview) {
 	displayComplete=false;
 
 	cb.size = sizeof(display_callback);
-	cb.version_major = 1;
-	cb.version_minor = 0;
+	cb.version_major = DISPLAY_VERSION_MAJOR;
+	cb.version_minor = DISPLAY_VERSION_MINOR;
 	cb.display_open = gsapi_display_open;
 	cb.display_preclose = gsapi_display_preclose;
 	cb.display_close = gsapi_display_close;
@@ -270,7 +176,7 @@ int32 gsloop(void* psview) {
 	if (code != 0)
 		fprintf(stderr, "Fail to set display callback: %d\n", code);
 
-	code = gsapi_init_with_args(instance, gs_arg, gs_call); 
+	code = gsapi_init_with_args(instance, gs_arg, (char**)gs_call);
 	if (code==0) {
 		if (displayComplete) {
 			gsapi_exit(instance);
