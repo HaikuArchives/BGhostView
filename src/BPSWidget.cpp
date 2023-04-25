@@ -220,7 +220,7 @@ int gsapi_stderr(void *caller_handle, const char *str, int len)
 display_callback cb;
 void* instance;
 
-long gsloop(void* psview) {
+int32 gsloop(void* psview) {
   BPSWidget *ps = (BPSWidget *) psview;
 	int code; 
 	int gs_arg;
@@ -230,7 +230,7 @@ long gsloop(void* psview) {
 	gs_call[gs_arg++] = "-dQUIET";
 	gs_call[gs_arg++] = "-sDEVICE=display";
 	gs_call[gs_arg++] = "-dDisplayFormat=2180";
-	gs_call[gs_arg++] = "-dDisplayHandle=0";
+	gs_call[gs_arg++] = "-sDisplayHandle=0";
 	gs_call[gs_arg++] = "-dTextAlphaBits=4";
 	gs_call[gs_arg++] = "-dGraphicsAlphaBits=4";
 	if (ps->pagemedia) {

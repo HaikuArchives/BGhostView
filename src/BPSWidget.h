@@ -18,7 +18,7 @@
 #endif
 
 int gsdll_call(int message, char *str, unsigned long count);
-long gsloop(void* psview);
+int32 gsloop(void* psview);
 bool writePS(FILE *in, FILE *out, long begin, unsigned int len);
 
 class BPSWidget : public BView

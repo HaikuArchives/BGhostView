@@ -479,7 +479,7 @@ void BGhostview::updateRecentList() {
 	if (!strcmp(filename,(char *) lastOpened->ItemAt(4))) return;
 	int count = m_recent->CountItems();
 	for (int i=0; i<count; i++)
-		delete m_recent->RemoveItem(0l);
+		delete m_recent->RemoveItem((int32)0);
 	void *ofname=lastOpened->LastItem();
 	lastOpened->RemoveItem(ofname);
 	delete ofname;
@@ -836,7 +836,7 @@ void	BGhostview::setup()
 		Lock();
 		int count = marklist->CountItems();
 		for (int i=0; i<count; i++) 
-			delete marklist->RemoveItem(0l);
+			delete marklist->RemoveItem((int32)0);
 		Unlock();
 	};
   if (doc!=NULL) psfree( doc );
