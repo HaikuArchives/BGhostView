@@ -149,7 +149,6 @@ int gsapi_display_close(void *handle, void *device)
 int gsapi_display_presize(void *handle, void *device,
         int w, int h, int r, unsigned int f)
 {
-	acquire_sem(painter->painter_sem); // lock our painter stuff until "sync"
 	width = w;
 	height = h;
 	bdev = device;
@@ -312,7 +311,7 @@ BPSWidget::BPSWidget( BRect frame, const char *name, const char *tempDir)
 	bdev=0;
 	startup_sem = create_sem(1,"gs_startup_protector");
 	shutdown_sem = create_sem(1,"gs_shutdown_protector");
-	painter_sem = create_sem(1,"gs_paintlock");
+	painter_sem = create_sem(0,"gs_paintlock");
 	keepup_sem = create_sem(1,"gs_keeprunning");
 	if (tempDir==NULL)
 		strcpy(PAGE_FILE,"/boot/home/tmp/bgv.tmp");	
@@ -393,7 +392,6 @@ void BPSWidget::Draw(BRect area) {
   	if (acquire_sem_etc(painter_sem,1,B_TIMEOUT,0)==B_NO_ERROR) {
   		// draw only if interpreter is up and running, block shutdown while drawing
 		DrawBitmap(gBitmap);
-	  	release_sem(painter_sem);
     }
   }
 }
