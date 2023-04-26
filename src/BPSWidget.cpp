@@ -75,10 +75,24 @@ int gsapi_display_sync(void* h, void* d)
 
 int gsapi_display_page(void *handle, void *device, int copies, int flush)
 {
-	painter->SetPaperSize(width,height);
 		// Also invalidates the window to trigger redraw
 	displayComplete=true;
+#if B_HAIKU_VERSION > B_HAIKU_VERSION_1_BETA_4
+	// We can use the new constructor that allows the bitmap to reuse the existing area, and not
+	// allocate any extra memory
+	gBitmap = new BBitmap(area_for(gDisplayData), 0, BRect(0, 0, width - 1, height - 1), 0, B_RGB32);
+#else
+	// For beta 4 and previous versions, we have to copy the bits into the bitmap
+	gBitmap = new BBitmap(BRect(0, 0, width - 1, height - 1), B_RGB32);
+	status_t lock = gBitmap->LockBits();
+	memcpy(gBitmap->Bits(), gDisplayData, width * height * 4);
+	gBitmap->UnlockBits();
+#endif
+
 	painter->painter_lock.Unlock(); // now it's ok for painter to draw
+	
+	// Notify the painter of the new bitmap size (this will also invalidate it)
+	painter->SetPaperSize(width,height);
 
 	// Wait and keep the bitmap in memory
 	acquire_sem(painter->keepup_sem);
@@ -89,7 +103,6 @@ int gsapi_display_page(void *handle, void *device, int copies, int flush)
 void* gsapi_memalloc(void *handle, void *device, unsigned long size)
 {
 	area_id area = create_area("gs bitmap", &gDisplayData, B_ANY_ADDRESS, size, B_NO_LOCK, B_READ_AREA | B_WRITE_AREA | B_CLONEABLE_AREA);
-	gBitmap = new BBitmap(area, 0, BRect(0, 0, width - 1, height - 1), 0, B_RGB32);
 	return gDisplayData;
 }
 
