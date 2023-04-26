@@ -52,9 +52,9 @@ public:
 				bool allMode, char** ml  );
 	
 	FILE		*psfile;
-	char  	filename[B_FILE_NAME_LENGTH];	
+	char  	filename[B_FILE_NAME_LENGTH];
 	char		psTmp[B_FILE_NAME_LENGTH];
-	char 		*tempDir;
+	char 		tempDir[B_FILE_NAME_LENGTH];
 	int			current_page;
 	int 		pages_in_part[10];
 	int 		num_parts;

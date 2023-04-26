@@ -23,61 +23,52 @@
 
 BGhostview::BGhostview( BRect frame, const char *name )
 	: BWindow( frame,name,B_DOCUMENT_WINDOW,0)
-{   
-  tempFile=NULL;
-  filePanel=NULL;
+{
+	tempFile=NULL;
+	filePanel=NULL;
 	psfile=0;
 	doc=0;
-  current_page=-1;
-  num_parts=0;
-  for(int part_count=0;part_count<10;part_count++) {
-    	pages_in_part[part_count]=0;}
-    
+	current_page=-1;
+	num_parts=0;
+	for(int part_count=0;part_count<10;part_count++) {
+		pages_in_part[part_count]=0;
+	}
+
 	magstep = 9;
 	pagemedia=0;
-	lastOpened=new BList();	
-	readSettings();    	
-	app_info info;
-	if (be_app->GetAppInfo(&info) != B_OK) {
-		BAlert *d = new BAlert("Error","Could not locate application directory.\nUsing /boot/apps/Ghostscript instead.","Ok");
-		d->Go();
-		tempDir = "/boot/apps/Ghostscript";
-		strcpy(psTmp,"/boot/apps/Ghostscript/");
-		}
-	else {
-	  BEntry entry(&info.ref);
-    BPath path;
-    entry.GetPath(&path);
-    path.GetParent(&path);
-		tempDir=new char[B_PATH_NAME_LENGTH];
-		strcpy(tempDir,path.Path());
-		strcpy(psTmp,tempDir);
-		strcat(psTmp,"/");
-		};
+	lastOpened=new BList();
+	readSettings();
+
+	BPath path;
+	find_directory(B_SYSTEM_TEMP_DIRECTORY, &path);
+	strcpy(tempDir, path.Path());
+	strcpy(psTmp, tempDir);
+	strcat(psTmp, "/");
+
 	BView *menuBar=createMenubar(BRect(0,0,0,0));
-  AddChild(menuBar);
+	AddChild(menuBar);
 	toolBar = (AToolBar *)createToolbar(BRect(0,menuBar->Bounds().Height()+1,frame.Width(),25));
 	AddChild(toolBar);
 	BView *mainView = new BGVDropTarget(this, BRect(0,menuBar->Bounds().Height()+toolBar->Bounds().Height()+1,frame.Width(),frame.Height()),"GVMainView",B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS);
 	int width=(int) mainView->StringWidth("0000 0000");
 	marklist = new BListView(BRect(3,4,width,mainView->Bounds().Height()-B_H_SCROLL_BAR_HEIGHT),"Marks",B_MULTIPLE_SELECTION_LIST, B_FOLLOW_ALL_SIDES, B_WILL_DRAW);
 	marklist->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
-  mainView->AddChild(new BScrollView("ScrollMarks",marklist, B_FOLLOW_LEFT | B_FOLLOW_TOP_BOTTOM, B_FULL_UPDATE_ON_RESIZE, false, true));
-  page = new BPSWidget(BRect(width+5+B_V_SCROLL_BAR_WIDTH,4,mainView->Bounds().Width()-B_H_SCROLL_BAR_HEIGHT,mainView->Bounds().Height()-B_V_SCROLL_BAR_WIDTH),"PSView", tempDir);
-  scrollView =new BScrollView("ScrollPage",page, B_FOLLOW_ALL, B_WILL_DRAW, true, true);
-  mainView->AddChild(scrollView);
-  mainView->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));  
-  marklist->SetSelectionMessage(new BMessage(BGV_SELECT_PAGE));
-  marklist->SetInvocationMessage(new BMessage(BGV_INVOKE_PAGE));
-  AddChild(mainView);
- 
+	mainView->AddChild(new BScrollView("ScrollMarks",marklist, B_FOLLOW_LEFT | B_FOLLOW_TOP_BOTTOM, B_FULL_UPDATE_ON_RESIZE, false, true));
+	page = new BPSWidget(BRect(width+5+B_V_SCROLL_BAR_WIDTH,4,mainView->Bounds().Width()-B_H_SCROLL_BAR_HEIGHT,mainView->Bounds().Height()-B_V_SCROLL_BAR_WIDTH),"PSView", tempDir);
+	scrollView =new BScrollView("ScrollPage",page, B_FOLLOW_ALL, B_WILL_DRAW, true, true);
+	mainView->AddChild(scrollView);
+	mainView->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));  
+	marklist->SetSelectionMessage(new BMessage(BGV_SELECT_PAGE));
+	marklist->SetInvocationMessage(new BMessage(BGV_INVOKE_PAGE));
+	AddChild(mainView);
+
 	printSelection = 1;
 	printerName = "lp0";
-	
-	
+
 	Show();
 }
- 
+
+
 void BGhostview::MessageReceived(BMessage *message) {
 	switch (message->what) {
 	case BGV_OLD_FILE: openLoadPanel(); 
