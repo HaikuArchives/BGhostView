@@ -51,7 +51,7 @@ BGVApplication::BGVApplication()
 			ssize_t size;
 			uint32 type='    ';
 			if (!set.GetData("Bounds",data,size,type)) 
-				memcpy(&frame,data,sizeof(frame));
+				frame = *(BRect*)data;
 		}
 	}
 	startup = new BGhostview(frame,"BGhostview");

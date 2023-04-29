@@ -109,6 +109,7 @@ void* gsapi_memalloc(void *handle, void *device, unsigned long size)
 int gsapi_memfree(void *handle, void *device, void *mem)
 {
 	delete gBitmap;
+	gBitmap = NULL;
 	area_id area = area_for(mem);
 	delete_area(area);
 	return 0;
@@ -180,6 +181,7 @@ int32 gsloop(void* psview) {
 	cb.display_memalloc = gsapi_memalloc;
 	cb.display_memfree = gsapi_memfree;
 
+	instance = NULL;
 	code = gsapi_new_instance(&instance, NULL);
 	if (code != 0)
 		fprintf(stderr, "Fail to create instance: %d\n", code);
@@ -346,7 +348,10 @@ bool BPSWidget::isInterpreterRunning() {
 
 bool BPSWidget::sendPS( FILE *fp, long begin, unsigned int len, bool close ){
   bool writeOk=writePS(fp,out,begin,len);
-	if (close) fclose(out);
+	if (close) {
+		fclose(out);
+		out = NULL;
+	}
   return writeOk;
 }    
 
@@ -360,13 +365,17 @@ void BPSWidget::stopInterpreter(){
 	release_sem(keepup_sem); // allow interpreter to quit
 	acquire_sem(shutdown_sem); // wait until interpreter is shut down
 	fclose(out);
-  out = fopen(PAGE_FILE,"w");
-  release_sem(startup_sem); // signal interpreter can be restarted
+	out = fopen(PAGE_FILE,"w");
+	release_sem(startup_sem); // signal interpreter can be restarted
 }
 
 void BPSWidget::quitInterpreter(){
-	if (isInterpreterRunning()) stopInterpreter();
-	fclose(out);
+	if (isInterpreterRunning())
+		stopInterpreter();
+	if (out) {
+		fclose(out);
+		out = NULL;
+	}
 	remove(PAGE_FILE);
 	if (gs_thread) kill_thread(gs_thread);
 }

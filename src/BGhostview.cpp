@@ -473,7 +473,7 @@ void BGhostview::updateRecentList() {
 		delete m_recent->RemoveItem((int32)0);
 	void *ofname=lastOpened->LastItem();
 	lastOpened->RemoveItem(ofname);
-	delete ofname;
+	delete[] (char*)ofname;
 	char *fname = new char[B_PATH_NAME_LENGTH];
 	strcpy(fname,filename);
 	lastOpened->AddItem(fname,0);
@@ -692,7 +692,7 @@ void BGhostview::printStart( int mode, bool reverseOrder,
 }
 
 
-char* BGhostview::printToPrinter( char* printerName, char* spoolerCommand,
+char* BGhostview::printToPrinter( const char* printerName, char* spoolerCommand,
 						char* printerVariable, bool allMode, char **ml )
 {
     /*
@@ -870,8 +870,8 @@ void	BGhostview::setup()
 		strcpy(tempFile,filename);}
 	// end of patch
   }
-  if (doc && (!doc->epsf && doc->numpages > 0 ||
-		 doc->epsf && doc->numpages > 1)) {
+  if (doc && ((!doc->epsf && doc->numpages > 0) ||
+		 (doc->epsf && doc->numpages > 1))) {
 		int maxlen = 0;
 		unsigned int i, j;
 		useful_page_labels = false;
@@ -1009,7 +1009,7 @@ void BGhostview::set_magstep(int i)
 	if (current_page>=0) show_page(current_page); 
 }
 
-void BGhostview::show_page(unsigned int number)
+void BGhostview::show_page(int number)
 {
 	if (number==-1) return;
   Lock();

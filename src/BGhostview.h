@@ -19,7 +19,7 @@ public:
 	void Quit();
 	bool QuitRequested();
 	void setup();
-	void show_page(unsigned int number);
+	void show_page(int number);
 	void set_magstep(int i);
 	void new_file(int number);
 	void openFile(const char* name );
@@ -47,7 +47,7 @@ public:
 				
 	void printToFile(const char* fname, bool all);
 				
-	char* printToPrinter( char* printerName, 
+	char* printToPrinter(const char* printerName, 
 				char* spoolerCommand, char* printerVariable,
 				bool allMode, char** ml  );
 	
@@ -98,7 +98,7 @@ private:
 	BMenu *m_pagemarks;
 	BMenu *m_help;
 	
-	char* printerName;
+	const char* printerName;
 	int printSelection;
 	int magstep;
 	int pagemedia;
