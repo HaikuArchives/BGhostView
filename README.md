@@ -20,12 +20,9 @@ Requirements
 ============
 
 - Ghostscript (tested with versions 9 and up)
-- XPMTranslator (for the toolbar icons)
 - libprefs
 
-Ghostscript and libprefs are available in Haikuports and installable as usual. xpm_translator
-currently isn't, due to licensing problems (the original author did not specify a license for it).
-Ideally the icons should be replaced with HVIF ones.
+Ghostscript and libprefs are available in Haikuports and installable as usual.
 
 Installation
 ============
